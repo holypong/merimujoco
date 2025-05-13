@@ -136,22 +136,23 @@ def render_model(model, data):
                 # 回転テスト
                 if total_frames >= MOT_START_FRAME:
                     mot_cnt = total_frames - MOT_START_FRAME
-                    if joint_name == "l_thigh_pitch":
-                        mjc_data.ctrl[joint_idx] = mjc_data.ctrl[joint_idx] - 0.008*math.sin(mot_cnt*0.02)
-                    if joint_name == "l_knee_pitch":
-                        mjc_data.ctrl[joint_idx] = mjc_data.ctrl[joint_idx] + 0.016*math.sin(mot_cnt*0.02)
-                    if joint_name == "l_ankle_pitch":
-                        mjc_data.ctrl[joint_idx] = mjc_data.ctrl[joint_idx] - 0.008*math.sin(mot_cnt*0.02)
-                    if joint_name == "r_thigh_pitch":
-                        mjc_data.ctrl[joint_idx] = mjc_data.ctrl[joint_idx] - 0.008*math.sin(mot_cnt*0.02)
-                    if joint_name == "r_knee_pitch":
-                        mjc_data.ctrl[joint_idx] = mjc_data.ctrl[joint_idx] + 0.016*math.sin(mot_cnt*0.02)
-                    if joint_name == "r_ankle_pitch":
-                        mjc_data.ctrl[joint_idx] = mjc_data.ctrl[joint_idx] - 0.008*math.sin(mot_cnt*0.02)
+                    mot_ctrl = mot_cnt*0.01
 
-                mdata[meridis_index] = round(np.degrees(float(mjc_data.ctrl[joint_idx])), 2)
+                    # 各関節に対応する制御振幅（中心を0とする正弦波）
+                    amplitude = {
+                        "thigh_pitch": math.radians(-30),   # -30°
+                        "knee_pitch": math.radians(60),   # 60°
+                        "ankle_pitch": math.radians(-30)   # -30°
+                    }
 
-        print(f"mdata: {mdata}")
+                    # モデルの関節に応じて制御信号を設定
+                    for joint_type, amp in amplitude.items():
+                        if joint_name == f"l_{joint_type}" or joint_name == f"r_{joint_type}":
+                            mjc_data.ctrl[joint_idx] = amp * abs(math.sin(mot_ctrl))
+
+                        mdata[meridis_index] = round(np.degrees(float(mjc_data.ctrl[joint_idx])), 2)
+
+        #print(f"mdata: {mdata}")
 
         # Redis にデータを送信
         redis_transfer.set_data(REDIS_KEY_WRITE, mdata)
