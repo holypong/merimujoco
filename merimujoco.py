@@ -50,7 +50,9 @@ MSG_SIZE = 90                   # Meridim配列の長さ
 REDIS_KEY_WRITE = "meridis"     # 読み込むRedisキー (キーA)
 REDIS_KEY_READ  = "meridis2"    # 書き込むRedisキー (キーB)
 CMD_VEL_GAIN = 1.0              # cmd_velのゲイン (0~1)
-FLG_MAKE_OBS = 0                # 0: obsを作らない, 1: obsを作る(Meridis_managerを起動しておくこと)
+FLG_SET_RCVD = False             # Redisからのデータ受信フラグ
+FLG_CREATE_CTRL = True          # 制御信号作成フラグ
+FLG_SET_SNDD = True             # Redisへのデータ送信フラグ
 
 MOT_START_FRAME = 200
 
@@ -124,38 +126,91 @@ def render_model(model, data):
 
         viewport = mujoco.MjrRect(0, 0, 1200, 900)
 
-        # make actions:データの更新
         # joint_pos, joint_names, base_euler を 90要素の配列に変換
         mdata = [0.0] * 90  # 初期化
 
-        for joint_name, meridis_index in joint_to_meridis.items():
-            if joint_name in joint_names:
-                # Handle joint positions (convert from radians to degrees)
-                joint_idx = joint_names.index(joint_name)
+        if FLG_SET_RCVD:
+            # meridis2キーからデータを読み込む
+            rcv_data = redis_receiver.get_data()
+            if rcv_data:
 
-                # 回転テスト
-                if total_frames >= MOT_START_FRAME:
-                    mot_cnt = total_frames - MOT_START_FRAME
-                    mot_ctrl = mot_cnt*0.01
+                #print(f"rcv data: {rcv_data}") # meridian -> redis データを確認
 
-                    # 各関節に対応する制御振幅（中心を0とする正弦波）
-                    amplitude = {
-                        "thigh_pitch": math.radians(-30),   # -30°
-                        "knee_pitch": math.radians(60),   # 60°
-                        "ankle_pitch": math.radians(-30)   # -30°
-                    }
+                if len(rcv_data) == MSG_SIZE:
+                    # データの更新
+                    #print(f"rcv data: {rcv_data}") # meridian -> redis データを確認
 
-                    # モデルの関節に応じて制御信号を設定
-                    for joint_type, amp in amplitude.items():
-                        if joint_name == f"l_{joint_type}" or joint_name == f"r_{joint_type}":
-                            mjc_data.ctrl[joint_idx] = amp * abs(math.sin(mot_ctrl))
+                    # IMU
+                    imu = Imu(
+                        header=Header(stamp=0.0, frame_id="base"),
+                        orientation=Quaternion(
+                            x=float(rcv_data[12]),
+                            y=float(rcv_data[13]),
+                            z=float(rcv_data[14]),
+                            w=1.0
+                        ),
+                        angular_velocity=Vector3(
+                            x=float(rcv_data[5]),
+                            y=float(rcv_data[6]),
+                            z=float(rcv_data[7])
+                        )
+                    )
 
-                        mdata[meridis_index] = round(np.degrees(float(mjc_data.ctrl[joint_idx])), 2)
+                    # Remo
+                    cmd_btn = float(rcv_data[15])
+                    
+                    lx = float(rcv_data[16] * CMD_VEL_GAIN)     # line_vel_x
+                    ly = float(rcv_data[17] * CMD_VEL_GAIN)     # line_vel_y
+                    rz = float(rcv_data[18] * CMD_VEL_GAIN)     # ang_vel_z +Hori 20250510 Test
 
-        #print(f"mdata: {mdata}")
+                    cmd_vel = Twist(
+                        linear=Vector3(x=lx, y=ly, z=0.0),       # x:前進, y:左右
+                        angular=Vector3(x=0.0, y=0.0, z=rz)     # z:z軸=yaw軸旋回
+                    )
+
+                    # imuとcmd_velのデータを表示
+                    print(f"[Debug] real-sensor: {imu.orientation.x}, {imu.orientation.y}, {imu.orientation.z} + cmd_vel: {cmd_vel.linear.x}, {cmd_vel.linear.y}, {cmd_vel.angular.z}, cmd_btn: {cmd_btn}")
+
+                    for joint_name, meridis_index in joint_to_meridis.items():
+                        if joint_name in joint_names:
+                            # Handle joint positions (convert from radians to degrees)
+                            joint_idx = joint_names.index(joint_name)
+                            data.ctrl[joint_idx] = round(np.radians(float(rcv_data[joint_idx])), 2)
+
+
+        if FLG_CREATE_CTRL:
+            # make actions:データの更新
+
+            for joint_name, meridis_index in joint_to_meridis.items():
+
+                if joint_name in joint_names:
+                    # Handle joint positions (convert from radians to degrees)
+                    joint_idx = joint_names.index(joint_name)
+
+                    # 回転テスト
+                    if total_frames >= MOT_START_FRAME:
+                        mot_cnt = total_frames - MOT_START_FRAME
+                        mot_ctrl = mot_cnt*0.01
+
+                        # 各関節に対応する制御振幅（中心を0とする正弦波）
+                        amplitude = {
+                            "thigh_pitch": math.radians(-30),   # -30°
+                            "knee_pitch": math.radians(60),   # 60°
+                            "ankle_pitch": math.radians(-30)   # -30°
+                        }
+
+                        # モデルの関節に応じて制御信号を設定
+                        for joint_type, amp in amplitude.items():
+                            if joint_name == f"l_{joint_type}" or joint_name == f"r_{joint_type}":
+                                data.ctrl[joint_idx] = amp * abs(math.sin(mot_ctrl))
+
+                            mdata[meridis_index] = round(np.degrees(float(data.ctrl[joint_idx])), 2)
+
+                #print(f"mdata: {mdata}")
 
         # Redis にデータを送信
-        redis_transfer.set_data(REDIS_KEY_WRITE, mdata)
+        if FLG_SET_SNDD:
+            redis_transfer.set_data(REDIS_KEY_WRITE, mdata)
 
         # データの更新
         mujoco.mj_step(model, data)
