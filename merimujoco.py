@@ -14,6 +14,16 @@ from redis_receiver import RedisReceiver
 from dataclasses import dataclass, field
 from typing import List
 
+MSG_SIZE = 90                   # Meridim配列の長さ
+REDIS_KEY_WRITE = "meridis"     # 読み込むRedisキー (キーA)
+REDIS_KEY_READ  = "meridis2"    # 書き込むRedisキー (キーB)
+CMD_VEL_GAIN = 1.0              # cmd_velのゲイン (0~1)
+FLG_SET_RCVD = False             # Redisからのデータ受信フラグ
+FLG_CREATE_CTRL = True          # 制御信号作成フラグ
+FLG_SET_SNDD = True             # Redisへのデータ送信フラグ
+
+MOT_START_FRAME = 200
+
 @dataclass
 class Header:
     stamp: float  # UNIX時間など（ROSのTimeに相当）
@@ -46,16 +56,6 @@ class Twist:
     angular: Vector3
 
 
-MSG_SIZE = 90                   # Meridim配列の長さ
-REDIS_KEY_WRITE = "meridis"     # 読み込むRedisキー (キーA)
-REDIS_KEY_READ  = "meridis2"    # 書き込むRedisキー (キーB)
-CMD_VEL_GAIN = 1.0              # cmd_velのゲイン (0~1)
-FLG_SET_RCVD = False             # Redisからのデータ受信フラグ
-FLG_CREATE_CTRL = True          # 制御信号作成フラグ
-FLG_SET_SNDD = True             # Redisへのデータ送信フラグ
-
-MOT_START_FRAME = 200
-
 # ダミーの関節名リスト
 joint_names = [
     "c_chest", "c_head", "l_shoulder_pitch", "l_shoulder_roll", "l_arm_upper_to_l_elbow", "l_elbow_pitch",
@@ -71,6 +71,15 @@ joint_to_meridis = {
     "base_roll":        12,
     "base_pitch":       13,
     "base_yaw":         14,
+    """
+    # Head
+    "c_head":           21,
+    # Left arm
+    "l_shoulder_pitch": 23,
+    "l_shoulder_roll":  25,
+    "l_arm_upper_to_l_elbow": 27,
+    "l_elbow_pitch":   29,
+    """
     # Left leg
     "l_hip_yaw":        31,
     "l_hip_roll":       33,
@@ -78,6 +87,15 @@ joint_to_meridis = {
     "l_knee_pitch":     37,
     "l_ankle_pitch":    39,
     "l_ankle_roll":     41,
+    """
+    # chest
+    "c_chest":          51,
+    # Right arm
+    "r_shoulder_pitch": 53,
+    "r_shoulder_roll":  55,
+    "r_arm_upper_to_r_elbow": 57,
+    "r_elbow_pitch":   59,
+    """
     # Right leg
     "r_hip_yaw":        61,
     "r_hip_roll":       63,
@@ -158,14 +176,14 @@ def render_model(model, data):
 
                     # Remo
                     cmd_btn = float(rcv_data[15])
-                    
-                    lx = float(rcv_data[16] * CMD_VEL_GAIN)     # line_vel_x
-                    ly = float(rcv_data[17] * CMD_VEL_GAIN)     # line_vel_y
-                    rz = float(rcv_data[18] * CMD_VEL_GAIN)     # ang_vel_z +Hori 20250510 Test
+
+                    line_vel_x = float(rcv_data[16] * CMD_VEL_GAIN)     # line_vel_x
+                    line_vel_y = float(rcv_data[17] * CMD_VEL_GAIN)     # line_vel_y
+                    ang_vel_z = float(rcv_data[18] * CMD_VEL_GAIN)     # ang_vel_z +Hori 20250510 Test
 
                     cmd_vel = Twist(
-                        linear=Vector3(x=lx, y=ly, z=0.0),       # x:前進, y:左右
-                        angular=Vector3(x=0.0, y=0.0, z=rz)     # z:z軸=yaw軸旋回
+                        linear=Vector3(x=line_vel_x, y=line_vel_y, z=0.0),       # x:前進, y:左右
+                        angular=Vector3(x=0.0, y=0.0, z=ang_vel_z)     # z:z軸=yaw軸旋回
                     )
 
                     # imuとcmd_velのデータを表示
@@ -176,6 +194,9 @@ def render_model(model, data):
                             # Handle joint positions (convert from radians to degrees)
                             joint_idx = joint_names.index(joint_name)
                             data.ctrl[joint_idx] = round(np.radians(float(rcv_data[joint_idx])), 2)
+
+                            #print(f"joint_name: {joint_name}, joint_idx: {joint_idx}, data.ctrl: {data.ctrl[joint_idx]}")
+
 
 
         if FLG_CREATE_CTRL:
