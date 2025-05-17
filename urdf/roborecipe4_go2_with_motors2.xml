@@ -107,7 +107,7 @@
             
             <body name="l_elbow" pos="-0.02 0 -0.074">
               <inertial pos="0 0 0" quat="0.000341234 0.67919 -0.075338 0.730085" mass="0.044" diaginertia="6.22588e-05 5.10972e-05 3.3644e-05" />
-              <joint name="l_arm_upper_to_l_elbow" pos="0 0 0" axis="0 0 1" range="-3.14159 3.14159" />
+              <joint name="l_elbow_yaw" pos="0 0 0" axis="0 0 1" range="-3.14159 3.14159" />
               <geom class="visual" material="gray" mesh="l_elbow" />
               <geom class="collision" mesh="l_elbow" />
               
@@ -137,7 +137,7 @@
             
             <body name="r_elbow" pos="-0.02 0 -0.074">
               <inertial pos="0 0 0" quat="-0.0458566 0.659116 0.0826879 0.746073" mass="0.044" diaginertia="1.61281e-05 1.31807e-05 7.69128e-06" />
-              <joint name="r_arm_upper_to_r_elbow" pos="0 0 0" axis="0 0 1" range="-3.14159 3.14159" />
+              <joint name="r_elbow_yaw" pos="0 0 0" axis="0 0 1" range="-3.14159 3.14159" />
               <geom class="visual" material="gray" mesh="r_elbow" />
               <geom class="collision" mesh="r_elbow" />
               
@@ -259,11 +259,11 @@
     <position class="robo" name="c_head" joint="c_head"/>
     <position class="robo" name="l_shoulder_pitch" joint="l_shoulder_pitch"/>
     <position class="robo" name="l_shoulder_roll" joint="l_shoulder_roll"/>
-    <position class="robo" name="l_arm_upper_to_l_elbow" joint="l_arm_upper_to_l_elbow"/>
+    <position class="robo" name="l_elbow_yaw" joint="l_elbow_yaw"/>
     <position class="robo" name="l_elbow_pitch" joint="l_elbow_pitch"/>
     <position class="robo" name="r_shoulder_pitch" joint="r_shoulder_pitch"/>
     <position class="robo" name="r_shoulder_roll" joint="r_shoulder_roll"/>
-    <position class="robo" name="r_arm_upper_to_r_elbow" joint="r_arm_upper_to_r_elbow"/>
+    <position class="robo" name="r_elbow_yaw" joint="r_elbow_yaw"/>
     <position class="robo" name="r_elbow_pitch" joint="r_elbow_pitch"/>
     <position class="robo" name="l_hip_yaw" joint="l_hip_yaw"/>
     <position class="robo" name="l_hip_roll" joint="l_hip_roll"/>

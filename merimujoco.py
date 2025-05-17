@@ -18,7 +18,7 @@ MSG_SIZE = 90                   # Meridim配列の長さ
 REDIS_KEY_WRITE = "meridis"     # 読み込むRedisキー (キーA)
 REDIS_KEY_READ  = "meridis2"    # 書き込むRedisキー (キーB)
 CMD_VEL_GAIN = 1.0              # cmd_velのゲイン (0~1)
-FLG_SET_RCVD = False             # Redisからのデータ受信フラグ
+FLG_SET_RCVD = True             # Redisからのデータ受信フラグ
 FLG_CREATE_CTRL = True          # 制御信号作成フラグ
 FLG_SET_SNDD = True             # Redisへのデータ送信フラグ
 
@@ -58,8 +58,8 @@ class Twist:
 
 # ダミーの関節名リスト
 joint_names = [
-    "c_chest", "c_head", "l_shoulder_pitch", "l_shoulder_roll", "l_arm_upper_to_l_elbow", "l_elbow_pitch",
-    "r_shoulder_pitch", "r_shoulder_roll", "r_arm_upper_to_r_elbow", "r_elbow_pitch",
+    "c_chest", "c_head", "l_shoulder_pitch", "l_shoulder_roll", "l_elbow_yaw", "l_elbow_pitch",
+    "r_shoulder_pitch", "r_shoulder_roll", "r_elbow_yaw", "r_elbow_pitch",
     "l_hip_yaw", "l_hip_roll", "l_thigh_pitch", "l_knee_pitch", "l_ankle_pitch", "l_ankle_roll",
     "r_hip_yaw", "r_hip_roll", "r_thigh_pitch", "r_knee_pitch", "r_ankle_pitch", "r_ankle_roll"
 ]
@@ -68,47 +68,45 @@ joint_names = [
 # Joint mapping dictionary
 joint_to_meridis = {
     # Base link
-    "base_roll":        12,
-    "base_pitch":       13,
-    "base_yaw":         14,
-    """
+    "base_roll":        [12, 1],
+    "base_pitch":       [13, 1],
+    "base_yaw":         [14, 1],
     # Head
-    "c_head":           21,
+    "c_head":           [21, 1],
     # Left arm
-    "l_shoulder_pitch": 23,
-    "l_shoulder_roll":  25,
-    "l_arm_upper_to_l_elbow": 27,
-    "l_elbow_pitch":   29,
-    """
+    "l_shoulder_pitch": [23, 1],
+    "l_shoulder_roll":  [25, 1],
+    "l_elbow_yaw":      [27, 1],
+    "l_elbow_pitch":    [29, 1],
     # Left leg
-    "l_hip_yaw":        31,
-    "l_hip_roll":       33,
-    "l_thigh_pitch":    35,
-    "l_knee_pitch":     37,
-    "l_ankle_pitch":    39,
-    "l_ankle_roll":     41,
-    """
+    "l_hip_yaw":        [31, 1],
+    "l_hip_roll":       [33, 1],
+    "l_thigh_pitch":    [35, 1],
+    "l_knee_pitch":     [37, 1],
+    "l_ankle_pitch":    [39, 1],
+    "l_ankle_roll":     [41, 1],
     # chest
-    "c_chest":          51,
+    "c_chest":          [51, 1],
     # Right arm
-    "r_shoulder_pitch": 53,
-    "r_shoulder_roll":  55,
-    "r_arm_upper_to_r_elbow": 57,
-    "r_elbow_pitch":   59,
-    """
+    "r_shoulder_pitch": [53, 1],
+    "r_shoulder_roll":  [55,-1],
+    "r_elbow_yaw":      [57,-1],
+    "r_elbow_pitch":    [59, 1],
     # Right leg
-    "r_hip_yaw":        61,
-    "r_hip_roll":       63,
-    "r_thigh_pitch":    65,
-    "r_knee_pitch":     67,
-    "r_ankle_pitch":    69,
-    "r_ankle_roll":     71
+    "r_hip_yaw":        [61,-1],
+    "r_hip_roll":       [63,-1],
+    "r_thigh_pitch":    [65, 1],
+    "r_knee_pitch":     [67, 1],
+    "r_ankle_pitch":    [69, 1],
+    "r_ankle_roll":     [71,-1]
 }
+
 
 # XMLモデルファイルを読み込む
 #model = mujoco.MjModel.from_xml_path('/opt/mujoco/model/humanoid/humanoid.xml')
 #model = mujoco.MjModel.from_xml_path('/home/hori/mujoco/urdf/roborecipe4_go2_with_motors2.xml')
 mjc_model = mujoco.MjModel.from_xml_path('/home/hori/mujoco/urdf/scene.xml')
+mjc_model.opt.gravity[2] = -9.81  # 重力を設定
 mjc_data = mujoco.MjData(mjc_model)
 
 # メインループ
@@ -193,10 +191,11 @@ def render_model(model, data):
                         if joint_name in joint_names:
                             # Handle joint positions (convert from radians to degrees)
                             joint_idx = joint_names.index(joint_name)
-                            data.ctrl[joint_idx] = round(np.radians(float(rcv_data[joint_idx])), 2)
+                            meridis_idx = joint_to_meridis[joint_name][0]
+                            meridis_mul = joint_to_meridis[joint_name][1]
+                            data.ctrl[joint_idx] = round(np.radians(float(rcv_data[meridis_idx])*meridis_mul), 2)
 
                             #print(f"joint_name: {joint_name}, joint_idx: {joint_idx}, data.ctrl: {data.ctrl[joint_idx]}")
-
 
 
         if FLG_CREATE_CTRL:
@@ -225,7 +224,7 @@ def render_model(model, data):
                             if joint_name == f"l_{joint_type}" or joint_name == f"r_{joint_type}":
                                 data.ctrl[joint_idx] = amp * abs(math.sin(mot_ctrl))
 
-                            mdata[meridis_index] = round(np.degrees(float(data.ctrl[joint_idx])), 2)
+                            mdata[meridis_index[0]] = round(np.degrees(float(data.ctrl[joint_idx])), 2)
 
                 #print(f"mdata: {mdata}")
 
