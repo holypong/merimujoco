@@ -1,6 +1,8 @@
 import mujoco
-from mujoco.viewer import launch
-from mujoco.glfw import glfw
+from mujoco.viewer import launch_passive
+import numpy as np
+import threading
+import time
 
 import numpy as np
 import os
@@ -101,101 +103,81 @@ joint_to_meridis = {
     "r_ankle_roll":     [71,-1]
 }
 
+redis_transfer = RedisTransfer(redis_key=REDIS_KEY_WRITE)
+redis_receiver = RedisReceiver(redis_key=REDIS_KEY_READ)
 
-# XMLモデルファイルを読み込む
+total_frames = 0
+
+# モデルを読み込む
 #model = mujoco.MjModel.from_xml_path('/opt/mujoco/model/humanoid/humanoid.xml')
 #model = mujoco.MjModel.from_xml_path('/home/hori/mujoco/urdf/roborecipe4_go2_with_motors2.xml')
-mjc_model = mujoco.MjModel.from_xml_path('/home/hori/mujoco/urdf/scene.xml')
-mjc_model.opt.gravity[2] = -9.81  # 重力を設定
-mjc_data = mujoco.MjData(mjc_model)
+model = mujoco.MjModel.from_xml_path('/home/hori/mujoco/urdf/scene.xml')
+data = mujoco.MjData(model)
 
-# メインループ
-# ビジュアライザの設定
-def render_model(model, data):
+# ビューアを初期化（描画は別スレッドで自動）
+viewer = launch_passive(model, data)
 
-    total_frames = 0
+# メインループで制御＋mj_step
+start_time = time.time()
+while viewer.is_running():
 
-    window = glfw.create_window(800, 600, "URDF Viewer", None, None)
-    glfw.init()
-    glfw.make_context_current(window)
-    glfw.swap_interval(0)
-    
-    # ビューワーの初期化
-    opt = mujoco.MjvOption()  # オプションオブジェクトを作成
-    
-    cam = mujoco.MjvCamera()    
-    cam.distance = 1.0  # カメラの距離を調整
-    cam.azimuth = 180    # カメラの方位角を調整
-    cam.elevation = -30   # カメラの仰角を調整
-    cam.lookat = [0.2, 0.2, 0.4]  # カメラの注視点を調整
-    scene = new_func(model)
-    context = mujoco.MjrContext(model, mujoco.mjtFontScale.mjFONTSCALE_150)
-    
-    # perturbオブジェクトの作成（必要なければNoneでも可）
-    pert = mujoco.MjvPerturb()
-    
-    # メインループ
-    while not glfw.window_should_close(window):
+    total_frames += 1
+    print(f"Total frames: {total_frames}")
+    # joint_pos, joint_names, base_euler を 90要素の配列に変換
+    mdata = [0.0] * 90  # 初期化
 
-        total_frames += 1
-        print(f"Total frames: {total_frames}")
+    elapsed = time.time() - start_time
 
-        viewport = mujoco.MjrRect(0, 0, 1200, 900)
+    if FLG_SET_RCVD:
+        # meridis2キーからデータを読み込む
+        rcv_data = redis_receiver.get_data()
+        if rcv_data:
 
-        # joint_pos, joint_names, base_euler を 90要素の配列に変換
-        mdata = [0.0] * 90  # 初期化
+            #print(f"rcv data: {rcv_data}") # meridian -> redis データを確認
 
-        if FLG_SET_RCVD:
-            # meridis2キーからデータを読み込む
-            rcv_data = redis_receiver.get_data()
-            if rcv_data:
-
+            if len(rcv_data) == MSG_SIZE:
+                # データの更新
                 #print(f"rcv data: {rcv_data}") # meridian -> redis データを確認
 
-                if len(rcv_data) == MSG_SIZE:
-                    # データの更新
-                    #print(f"rcv data: {rcv_data}") # meridian -> redis データを確認
-
-                    # IMU
-                    imu = Imu(
-                        header=Header(stamp=0.0, frame_id="base"),
-                        orientation=Quaternion(
-                            x=float(rcv_data[12]),
-                            y=float(rcv_data[13]),
-                            z=float(rcv_data[14]),
-                            w=1.0
-                        ),
-                        angular_velocity=Vector3(
-                            x=float(rcv_data[5]),
-                            y=float(rcv_data[6]),
-                            z=float(rcv_data[7])
-                        )
+                # IMU
+                imu = Imu(
+                    header=Header(stamp=0.0, frame_id="base"),
+                    orientation=Quaternion(
+                        x=float(rcv_data[12]),
+                        y=float(rcv_data[13]),
+                        z=float(rcv_data[14]),
+                        w=1.0
+                    ),
+                    angular_velocity=Vector3(
+                        x=float(rcv_data[5]),
+                        y=float(rcv_data[6]),
+                        z=float(rcv_data[7])
                     )
+                )
 
-                    # Remo
-                    cmd_btn = float(rcv_data[15])
+                # Remo
+                cmd_btn = float(rcv_data[15])
 
-                    line_vel_x = float(rcv_data[16] * CMD_VEL_GAIN)     # line_vel_x
-                    line_vel_y = float(rcv_data[17] * CMD_VEL_GAIN)     # line_vel_y
-                    ang_vel_z = float(rcv_data[18] * CMD_VEL_GAIN)     # ang_vel_z +Hori 20250510 Test
+                line_vel_x = float(rcv_data[16] * CMD_VEL_GAIN)     # line_vel_x
+                line_vel_y = float(rcv_data[17] * CMD_VEL_GAIN)     # line_vel_y
+                ang_vel_z = float(rcv_data[18] * CMD_VEL_GAIN)     # ang_vel_z +Hori 20250510 Test
 
-                    cmd_vel = Twist(
-                        linear=Vector3(x=line_vel_x, y=line_vel_y, z=0.0),       # x:前進, y:左右
-                        angular=Vector3(x=0.0, y=0.0, z=ang_vel_z)     # z:z軸=yaw軸旋回
-                    )
+                cmd_vel = Twist(
+                    linear=Vector3(x=line_vel_x, y=line_vel_y, z=0.0),       # x:前進, y:左右
+                    angular=Vector3(x=0.0, y=0.0, z=ang_vel_z)     # z:z軸=yaw軸旋回
+                )
 
-                    # imuとcmd_velのデータを表示
-                    print(f"[Debug] real-sensor: {imu.orientation.x}, {imu.orientation.y}, {imu.orientation.z} + cmd_vel: {cmd_vel.linear.x}, {cmd_vel.linear.y}, {cmd_vel.angular.z}, cmd_btn: {cmd_btn}")
+                # imuとcmd_velのデータを表示
+                print(f"[Debug] real-sensor: {imu.orientation.x}, {imu.orientation.y}, {imu.orientation.z} + cmd_vel: {cmd_vel.linear.x}, {cmd_vel.linear.y}, {cmd_vel.angular.z}, cmd_btn: {cmd_btn}")
 
-                    for joint_name, meridis_index in joint_to_meridis.items():
-                        if joint_name in joint_names:
-                            # Handle joint positions (convert from radians to degrees)
-                            joint_idx = joint_names.index(joint_name)
-                            meridis_idx = joint_to_meridis[joint_name][0]
-                            meridis_mul = joint_to_meridis[joint_name][1]
-                            data.ctrl[joint_idx] = round(np.radians(float(rcv_data[meridis_idx])*meridis_mul), 2)
-
-                            #print(f"joint_name: {joint_name}, joint_idx: {joint_idx}, data.ctrl: {data.ctrl[joint_idx]}")
+                for joint_name, meridis_index in joint_to_meridis.items():
+                    if joint_name in joint_names:
+                        # Handle joint positions (convert from radians to degrees)
+                        joint_idx = joint_names.index(joint_name)
+                        meridis_idx = joint_to_meridis[joint_name][0]
+                        meridis_mul = joint_to_meridis[joint_name][1]
+                        data.ctrl[joint_idx] = round(np.radians(float(rcv_data[meridis_idx])*meridis_mul), 2)
+                        #print(f"joint_name: {joint_name}, joint_idx: {joint_idx}, data.ctrl: {data.ctrl[joint_idx]}")
 
 
         if FLG_CREATE_CTRL:
@@ -232,33 +214,9 @@ def render_model(model, data):
         if FLG_SET_SNDD:
             redis_transfer.set_data(REDIS_KEY_WRITE, mdata)
 
-        # データの更新
-        mujoco.mj_step(model, data)
-        
-        # シーンの更新 - pert引数を追加
-        mujoco.mjv_updateScene(model, data, opt, pert, cam, mujoco.mjtCatBit.mjCAT_ALL, scene)
-        
-        # レンダリング
-        mujoco.mjr_render(viewport, scene, context)
-        
-        # ウィンドウの更新
-        glfw.swap_buffers(window)
-        glfw.poll_events()
-    
-    glfw.terminate()
 
-def new_func(model):
-    scene = mujoco.MjvScene(model, maxgeom=10000)
-    return scene
+    # mj_stepを呼び出し
+    mujoco.mj_step(model, data)  # ステップ更新
+    viewer.sync()                # 描画更新
 
-if __name__ == "__main__":
-    redis_transfer = RedisTransfer(redis_key=REDIS_KEY_WRITE)
-    redis_receiver = RedisReceiver(redis_key=REDIS_KEY_READ)
-
-    # 標準ビューワ
-    #launch(mjc_model, mjc_data)  # ビューアを更新し、終了イベントをチェック
-
-    # レンダーを実行
-    # グラフィカルインターフェースの初期化
-    glfw.init()
-    render_model(mjc_model, mjc_data)
+    time.sleep(0.001)             # 制御ループ：100Hz
