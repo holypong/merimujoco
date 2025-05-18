@@ -24,7 +24,8 @@ FLG_SET_RCVD = True             # Redisからのデータ受信フラグ
 FLG_CREATE_CTRL = True          # 制御信号作成フラグ
 FLG_SET_SNDD = True             # Redisへのデータ送信フラグ
 
-MOT_START_FRAME = 200
+MOT_START_FRAME = 200   # 開始フレーム
+MOT_START_TIME = 1.0  # 開始時間
 
 @dataclass
 class Header:
@@ -106,7 +107,8 @@ joint_to_meridis = {
 redis_transfer = RedisTransfer(redis_key=REDIS_KEY_WRITE)
 redis_receiver = RedisReceiver(redis_key=REDIS_KEY_READ)
 
-total_frames = 0
+total_frames = 0    # 全体のフレーム数
+elapsed = 0.0       # 経過時間
 
 # モデルを読み込む
 #model = mujoco.MjModel.from_xml_path('/opt/mujoco/model/humanoid/humanoid.xml')
@@ -117,82 +119,75 @@ data = mujoco.MjData(model)
 # ビューアを初期化（描画は別スレッドで自動）
 viewer = launch_passive(model, data)
 
-# メインループで制御＋mj_step
-start_time = time.time()
-while viewer.is_running():
 
-    total_frames += 1
-    print(f"Total frames: {total_frames}")
-    # joint_pos, joint_names, base_euler を 90要素の配列に変換
-    mdata = [0.0] * 90  # 初期化
+mdata = [0.0] * 90  # 初期化
 
-    elapsed = time.time() - start_time
+def motor_controller_thread():
+    while True:
+        
 
-    if FLG_SET_RCVD:
-        # meridis2キーからデータを読み込む
-        rcv_data = redis_receiver.get_data()
-        if rcv_data:
+        if FLG_SET_RCVD and elapsed >= MOT_START_TIME:  # データ受信フラグが立っていて、開始時間を超えたら
+            # meridis2キーからデータを読み込む
+            rcv_data = redis_receiver.get_data()
+            if rcv_data:
 
-            #print(f"rcv data: {rcv_data}") # meridian -> redis データを確認
-
-            if len(rcv_data) == MSG_SIZE:
-                # データの更新
                 #print(f"rcv data: {rcv_data}") # meridian -> redis データを確認
 
-                # IMU
-                imu = Imu(
-                    header=Header(stamp=0.0, frame_id="base"),
-                    orientation=Quaternion(
-                        x=float(rcv_data[12]),
-                        y=float(rcv_data[13]),
-                        z=float(rcv_data[14]),
-                        w=1.0
-                    ),
-                    angular_velocity=Vector3(
-                        x=float(rcv_data[5]),
-                        y=float(rcv_data[6]),
-                        z=float(rcv_data[7])
+                if len(rcv_data) == MSG_SIZE:
+                    # データの更新
+                    #print(f"rcv data: {rcv_data}") # meridian -> redis データを確認
+
+                    # IMU
+                    imu = Imu(
+                        header=Header(stamp=0.0, frame_id="base"),
+                        orientation=Quaternion(
+                            x=float(rcv_data[12]),
+                            y=float(rcv_data[13]),
+                            z=float(rcv_data[14]),
+                            w=1.0
+                        ),
+                        angular_velocity=Vector3(
+                            x=float(rcv_data[5]),
+                            y=float(rcv_data[6]),
+                            z=float(rcv_data[7])
+                        )
                     )
-                )
 
-                # Remo
-                cmd_btn = float(rcv_data[15])
+                    # Remo
+                    cmd_btn = float(rcv_data[15])
 
-                line_vel_x = float(rcv_data[16] * CMD_VEL_GAIN)     # line_vel_x
-                line_vel_y = float(rcv_data[17] * CMD_VEL_GAIN)     # line_vel_y
-                ang_vel_z = float(rcv_data[18] * CMD_VEL_GAIN)     # ang_vel_z +Hori 20250510 Test
+                    line_vel_x = float(rcv_data[16] * CMD_VEL_GAIN)     # line_vel_x
+                    line_vel_y = float(rcv_data[17] * CMD_VEL_GAIN)     # line_vel_y
+                    ang_vel_z = float(rcv_data[18] * CMD_VEL_GAIN)     # ang_vel_z +Hori 20250510 Test
 
-                cmd_vel = Twist(
-                    linear=Vector3(x=line_vel_x, y=line_vel_y, z=0.0),       # x:前進, y:左右
-                    angular=Vector3(x=0.0, y=0.0, z=ang_vel_z)     # z:z軸=yaw軸旋回
-                )
+                    cmd_vel = Twist(
+                        linear=Vector3(x=line_vel_x, y=line_vel_y, z=0.0),       # x:前進, y:左右
+                        angular=Vector3(x=0.0, y=0.0, z=ang_vel_z)     # z:z軸=yaw軸旋回
+                    )
 
-                # imuとcmd_velのデータを表示
-                print(f"[Debug] real-sensor: {imu.orientation.x}, {imu.orientation.y}, {imu.orientation.z} + cmd_vel: {cmd_vel.linear.x}, {cmd_vel.linear.y}, {cmd_vel.angular.z}, cmd_btn: {cmd_btn}")
+                    # imuとcmd_velのデータを表示
+                    print(f"[Debug] real-sensor: {imu.orientation.x}, {imu.orientation.y}, {imu.orientation.z} + cmd_vel: {cmd_vel.linear.x}, {cmd_vel.linear.y}, {cmd_vel.angular.z}, cmd_btn: {cmd_btn}")
+
+                    for joint_name, meridis_index in joint_to_meridis.items():
+                        if joint_name in joint_names:
+                            # Handle joint positions (convert from radians to degrees)
+                            joint_idx = joint_names.index(joint_name)
+                            meridis_idx = joint_to_meridis[joint_name][0]
+                            meridis_mul = joint_to_meridis[joint_name][1]
+                            data.ctrl[joint_idx] = round(np.radians(float(rcv_data[meridis_idx])*meridis_mul), 2)
+                            #print(f"joint_name: {joint_name}, joint_idx: {joint_idx}, data.ctrl: {data.ctrl[joint_idx]}")
+
+
+            if FLG_CREATE_CTRL and elapsed >= MOT_START_TIME:  # 制御信号作成フラグが立っていて、開始時間を超えたら
+                # make actions:データの更新
 
                 for joint_name, meridis_index in joint_to_meridis.items():
+
                     if joint_name in joint_names:
                         # Handle joint positions (convert from radians to degrees)
                         joint_idx = joint_names.index(joint_name)
-                        meridis_idx = joint_to_meridis[joint_name][0]
-                        meridis_mul = joint_to_meridis[joint_name][1]
-                        data.ctrl[joint_idx] = round(np.radians(float(rcv_data[meridis_idx])*meridis_mul), 2)
-                        #print(f"joint_name: {joint_name}, joint_idx: {joint_idx}, data.ctrl: {data.ctrl[joint_idx]}")
 
-
-        if FLG_CREATE_CTRL:
-            # make actions:データの更新
-
-            for joint_name, meridis_index in joint_to_meridis.items():
-
-                if joint_name in joint_names:
-                    # Handle joint positions (convert from radians to degrees)
-                    joint_idx = joint_names.index(joint_name)
-
-                    # 回転テスト
-                    if total_frames >= MOT_START_FRAME:
-                        mot_cnt = total_frames - MOT_START_FRAME
-                        mot_ctrl = mot_cnt*0.01
+                        mot_ctrl = (elapsed - MOT_START_TIME)
 
                         # 各関節に対応する制御振幅（中心を0とする正弦波）
                         amplitude = {
@@ -208,15 +203,39 @@ while viewer.is_running():
 
                             mdata[meridis_index[0]] = round(np.degrees(float(data.ctrl[joint_idx])), 2)
 
+    
+                joint_idx = joint_names.index("c_head")  # c_headのインデックスを取得
+                data.ctrl[joint_idx] = 1.0 * ang_vel_z
+                mdata[joint_to_meridis["c_head"][0]] = round(np.degrees(float(data.ctrl[joint_idx])), 2)
+                joint_idx = joint_names.index("l_shoulder_pitch")  # c_headのインデックスを取得
+                data.ctrl[joint_idx] = 1.0 * -line_vel_y
+                mdata[joint_to_meridis["l_shoulder_pitch"][0]] = round(np.degrees(float(data.ctrl[joint_idx])), 2)
                 #print(f"mdata: {mdata}")
 
-        # Redis にデータを送信
-        if FLG_SET_SNDD:
-            redis_transfer.set_data(REDIS_KEY_WRITE, mdata)
+            # Redis にデータを送信
+            if FLG_SET_SNDD and elapsed >= MOT_START_TIME:  # データ送信フラグが立っていて、開始時間を超えたら
+                redis_transfer.set_data(REDIS_KEY_WRITE, mdata)
 
+
+        time.sleep(0.02)  # 10ms待機
+
+# スレッドを開始
+mot_ctrl_thread = threading.Thread(target=motor_controller_thread, daemon=True)
+mot_ctrl_thread.start()
+
+
+# メインループで制御＋mj_step
+start_time = time.time()
+while viewer.is_running():
+
+    total_frames += 1
+    #print(f"Total frames: {total_frames}")
+
+    elapsed = time.time() - start_time
+    #print(f"Elapsed time: {elapsed:.4f} seconds")
 
     # mj_stepを呼び出し
     mujoco.mj_step(model, data)  # ステップ更新
     viewer.sync()                # 描画更新
 
-    time.sleep(0.001)             # 制御ループ：100Hz
+    #time.sleep(0.001)            # 制御ループ：Hz
