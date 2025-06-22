@@ -21,7 +21,7 @@ REDIS_KEY_WRITE = "meridis"     # 読み込むRedisキー (キーA)
 REDIS_KEY_READ  = "meridis2"    # 書き込むRedisキー (キーB)
 CMD_VEL_GAIN = 1.0              # cmd_velのゲイン (0~1)
 FLG_SET_RCVD = True             # Redisからのデータ受信フラグ
-FLG_CREATE_CTRL = True          # 制御信号作成フラグ
+FLG_CREATE_CTRL = False          # 制御信号作成フラグ
 FLG_SET_SNDD = True             # Redisへのデータ送信フラグ
 
 MOT_START_FRAME = 200   # 開始フレーム
@@ -116,9 +116,23 @@ elapsed = 0.0       # 経過時間
 model = mujoco.MjModel.from_xml_path('/home/hori/mujoco/urdf/scene.xml')
 data = mujoco.MjData(model)
 
+
+# --- 起動時に強制的に物理パラメータを上書き ---
+model.opt.gravity[:] = [0, 0, -4.9]           # 重力を半分に
+model.opt.timestep = 0.001                    # タイムステップ調整
+model.opt.integrator = mujoco.mjtIntegrator.mjINT_RK4  # 安定な積分器に変更
+
+# 全関節の減衰（damping）を強制上書き
+model.dof_damping[:] = 5.0                    # ブレ防止
+
+# 全geomの摩擦係数を上書き（静止摩擦、動摩擦、粘着摩擦）
+model.geom_friction[:, :] = [2.0, 0.01, 0.001]  # 足裏の滑り防止
+
+
+
+
 # ビューアを初期化（描画は別スレッドで自動）
 viewer = launch_passive(model, data)
-
 
 mdata = [0.0] * 90  # 初期化
 
