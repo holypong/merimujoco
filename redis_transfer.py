@@ -117,12 +117,12 @@ class RedisTransfer:
 
         try:    
             # データをハッシュ構造で保存
-            for i, value in enumerate(data):
-                self.redis_client.hset(redis_key, i, value)
+            #for i, value in enumerate(data):
+            #    self.redis_client.hset(redis_key, i, value)
             
             # データをハッシュ構造で保存（1回の操作で全てを設定）
-            #hash_data = {str(i): value for i, value in enumerate(data)}
-            #self.redis_client.hset(redis_key, mapping=hash_data)
+            hash_data = {str(i): value for i, value in enumerate(data)}
+            self.redis_client.hset(redis_key, mapping=hash_data)
 
         except redis.RedisError as e:
             print(f"[Redis Error | set_data] Unexpected error: {str(e)}")        
