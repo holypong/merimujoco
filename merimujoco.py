@@ -142,7 +142,11 @@ def motor_controller_thread():
 
         if FLG_SET_RCVD and elapsed >= MOT_START_TIME:  # データ受信フラグが立っていて、開始時間を超えたら
             # meridis2キーからデータを読み込む
+            #start_time = time.perf_counter()
             rcv_data = redis_receiver.get_data()
+            #elapsed_time = time.perf_counter() - start_time
+            #print(f"receive elapsed time: {elapsed_time*1000000:.2f} microseconds ({elapsed_time:.6f} seconds)")
+
             if rcv_data:
 
                 #print(f"rcv data: {rcv_data}") # meridian -> redis データを確認
@@ -228,8 +232,10 @@ def motor_controller_thread():
 
             # Redis にデータを送信
             if FLG_SET_SNDD and elapsed >= MOT_START_TIME:  # データ送信フラグが立っていて、開始時間を超えたら
+                #start_time = time.perf_counter()
                 redis_transfer.set_data(REDIS_KEY_WRITE, mdata)
-
+                #elapsed_time = time.perf_counter() - start_time
+                #print(f"transfer elapsed time: {elapsed_time*1000000:.2f} microseconds ({elapsed_time:.6f} seconds)")
 
         time.sleep(0.02)  # 10ms待機
 

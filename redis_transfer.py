@@ -1,5 +1,6 @@
 import redis
 import numpy as np
+import time
 
 # 20250429 redis_transfer.py 新規作成
 
@@ -114,10 +115,15 @@ class RedisTransfer:
         # 使用するキーを決定
         redis_key = key if key is not None else self.redis_key
 
-        try:
+        try:    
             # データをハッシュ構造で保存
             for i, value in enumerate(data):
                 self.redis_client.hset(redis_key, i, value)
+            
+            # データをハッシュ構造で保存（1回の操作で全てを設定）
+            #hash_data = {str(i): value for i, value in enumerate(data)}
+            #self.redis_client.hset(redis_key, mapping=hash_data)
+
         except redis.RedisError as e:
             print(f"[Redis Error | set_data] Unexpected error: {str(e)}")        
     

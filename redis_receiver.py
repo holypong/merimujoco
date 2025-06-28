@@ -77,7 +77,7 @@ def main():
     parser = argparse.ArgumentParser(description='Redisから関節データを取得')
     parser.add_argument('--host', default='localhost', help='Redisサーバーのホスト名')
     parser.add_argument('--port', type=int, default=6379, help='Redisサーバーのポート番号')
-    parser.add_argument('--key', default='meridis', help='取得するRedisのキー名')
+    parser.add_argument('--key', default='meridis2', help='取得するRedisのキー名')
     parser.add_argument('--window', type=float, default=5.0, help='表示する時間幅（秒）')
     args = parser.parse_args()
     
