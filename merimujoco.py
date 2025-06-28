@@ -193,8 +193,16 @@ def motor_controller_thread():
                             meridis_idx = joint_to_meridis[joint_name][0]
                             meridis_mul = joint_to_meridis[joint_name][1]
                             data.ctrl[joint_idx] = round(np.radians(float(rcv_data[meridis_idx])*meridis_mul), 2)
-                            #print(f"joint_name: {joint_name}, joint_idx: {joint_idx}, data.ctrl: {data.ctrl[joint_idx]}")
+                            #print(f"joint_name: {joint_name}, joint_idx: {joint_idx}, ctrl: {data.ctrl[joint_idx]}, mul: {joint_to_meridis[joint_name][1]}")
 
+                    # mdataの更新 +Hori 20250628
+                    for i in range(len(mdata)):
+                        if i < len(rcv_data):
+                            mdata[i] = float(rcv_data[i])
+                        else:
+                            mdata[i] = 0.0
+
+                    #print(f"mdata: {mdata}")
 
             if FLG_CREATE_CTRL and elapsed >= MOT_START_TIME:  # 制御信号作成フラグが立っていて、開始時間を超えたら
                 # make actions:データの更新
@@ -228,7 +236,7 @@ def motor_controller_thread():
                 joint_idx = joint_names.index("l_shoulder_pitch")  # c_headのインデックスを取得
                 data.ctrl[joint_idx] = 1.0 * -line_vel_y
                 mdata[joint_to_meridis["l_shoulder_pitch"][0]] = round(np.degrees(float(data.ctrl[joint_idx])), 2)
-                #print(f"mdata: {mdata}")
+                print(f"mdata: {mdata}")
 
             # Redis にデータを送信
             if FLG_SET_SNDD and elapsed >= MOT_START_TIME:  # データ送信フラグが立っていて、開始時間を超えたら
