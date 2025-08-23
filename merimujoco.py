@@ -239,13 +239,24 @@ def motor_controller_thread():
 
             # Redis にデータを送信
             if FLG_SET_SNDD and elapsed >= MOT_START_TIME:  # データ送信フラグが立っていて、開始時間を超えたら
+
+                # mujocoのIMUデータを小数点2桁で表示
+                print(f"[Debug] mjc: {imu_mjc.orientation.x:.2f}, {imu_mjc.orientation.y:.2f}, {imu_mjc.orientation.z:.2f}")
+
+                mdata[2] = round(imu_mjc.linear_acceleration.x, 4)   # ax(m/s^2)
+                mdata[3] = round(imu_mjc.linear_acceleration.y, 4)   # ay(m/s^2)
+                mdata[4] = round(imu_mjc.linear_acceleration.z, 4)   # az(m/s^2)
+                mdata[5]  = round(imu_mjc.angular_velocity.x, 4)   # wx(deg/s)
+                mdata[6]  = round(imu_mjc.angular_velocity.y, 4)   # wy(deg/s)
+                mdata[7]  = round(imu_mjc.angular_velocity.z, 4)   # wz(deg/s)
+                mdata[12] = round(imu_mjc.orientation.x, 4)   # roll(deg)
+                mdata[13] = round(imu_mjc.orientation.y, 4)   # pitch(deg)
+                mdata[14] = round(imu_mjc.orientation.z, 4)   # yaw(deg)
+                
                 #start_time = time.perf_counter()
                 redis_transfer.set_data(REDIS_KEY_WRITE, mdata)
                 #elapsed_time = time.perf_counter() - start_time
                 #print(f"transfer elapsed time: {elapsed_time*1000000:.2f} microseconds ({elapsed_time:.6f} seconds)")
-
-                # mujocoのIMUデータを小数点2桁で表示
-                print(f"[Debug] mjc: {imu_mjc.orientation.x:.2f}, {imu_mjc.orientation.y:.2f}, {imu_mjc.orientation.z:.2f}")
 
 
         time.sleep(0.02)  # 10ms待機
@@ -254,175 +265,74 @@ def motor_controller_thread():
 mot_ctrl_thread = threading.Thread(target=motor_controller_thread, daemon=True)
 mot_ctrl_thread.start()
 
-# --- c_chest の姿勢・角速度・重力を計算して imu_mjc に格納するスレッド ---
-# imu_mjc は既に初期化済み（ゼロ値の Imu）。チェストスレッドは最初の有効値で上書きします。
-def chest_imu_thread():
-    global imu_mjc
-    # chest body id はスレッド開始時に取得
-    chest_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "c_chest")
-    while True:
-        try:
-            # スレッドはメインのフラグと時間を参照して動作
-            if not (FLG_SET_RCVD and elapsed >= MOT_START_TIME):
-                time.sleep(0.01)
-                continue
-
-            # xmat から chest の姿勢行列を取得（堅牢に）
-            xmat = data.xmat
-            arr = np.array(xmat)
-            if arr.ndim == 2 and arr.shape[1] == 9:
-                chest_mat = arr[chest_body_id].reshape(3, 3)
-            else:
-                flat = arr.flatten()
-                start = chest_body_id * 9
-                end = (chest_body_id + 1) * 9
-                if end <= flat.size:
-                    chest_mat = flat[start:end].reshape(3, 3)
-                else:
-                    chest_mat = np.eye(3)
-
-            # オイラー角（ZYX）
-            yaw = math.atan2(float(chest_mat[1, 0]), float(chest_mat[0, 0]))
-            pitch = math.asin(max(-1.0, min(1.0, -float(chest_mat[2, 0]))))
-            roll = math.atan2(float(chest_mat[2, 1]), float(chest_mat[2, 2]))
-
-            # RPY を度に変換（デバッグ表示用）
-            yaw_deg = math.degrees(yaw)
-            pitch_deg = math.degrees(pitch)
-            roll_deg = math.degrees(roll)
-
-            # 角速度抽出（data.xvel を参照）
-            ang_vel = Vector3(0.0, 0.0, 0.0)
-            try:
-                xvel = np.array(data.xvel)
-                if xvel.ndim == 2 and xvel.shape[1] >= 6:
-                    wx, wy, wz = xvel[chest_body_id, 3:6]
-                    # data.xvel の角速度は rad/s の想定なので deg/s に変換して格納
-                    ang_vel = Vector3(math.degrees(float(wx)), math.degrees(float(wy)), math.degrees(float(wz)))
-                else:
-                    flat = xvel.flatten()
-                    start = chest_body_id * 6
-                    end = (chest_body_id + 1) * 6
-                    if end <= flat.size:
-                        seg = flat[start:end]
-                        wx, wy, wz = seg[3:6]
-                        ang_vel = Vector3(math.degrees(float(wx)), math.degrees(float(wy)), math.degrees(float(wz)))
-            except Exception:
-                pass
-
-            # gravity -> linear_acceleration
-            try:
-                g = model.opt.gravity
-                lin_acc = Vector3(float(g[0]), float(g[1]), float(g[2]))
-            except Exception:
-                lin_acc = Vector3(0.0, 0.0, 0.0)
-
-            imu_mjc = Imu(
-                header=Header(stamp=time.time(), frame_id="c_chest"),
-                # orientation は roll/pitch/yaw(deg)
-                orientation=Vector3(roll_deg, pitch_deg, yaw_deg),
-                angular_velocity=ang_vel,
-                linear_acceleration=lin_acc
-            )
-
-            time.sleep(0.01)
-        except Exception:
-            pass
 
 
-# chest imu スレッドを開始
-chest_thread = threading.Thread(target=chest_imu_thread, daemon=True)
-chest_thread.start()
 
 # メインループで制御＋mj_step
 start_time = time.time()
+chest_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "c_chest")
 while viewer.is_running():
-
     total_frames += 1
-    #print(f"Total frames: {total_frames}")
-
     elapsed = time.time() - start_time
-    #print(f"Elapsed time: {elapsed:.4f} seconds")
 
-    # mj_stepを呼び出し
     mujoco.mj_step(model, data)  # ステップ更新
     viewer.sync()                # 描画更新
 
-
-    # c_chest の IMU 計算は別スレッドに移動しました（変数 imu_mjc を参照してください）
-
-
-# --- c_chest の姿勢・角速度・重力を計算して imu_mjc に格納するスレッド ---
-# imu_mjc は既に初期化済み（ゼロ値の Imu）。チェストスレッドは最初の有効値で上書きします。
-def chest_imu_thread():
-    global imu_mjc
-    # chest body id はスレッド開始時に取得
-    chest_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "c_chest")
-    while True:
-        try:
-            # スレッドはメインのフラグと時間を参照して動作
-            if not (FLG_SET_RCVD and elapsed >= MOT_START_TIME):
-                time.sleep(0.01)
-                continue
-
-            # xmat から chest の姿勢行列を取得（堅牢に）
-            xmat = data.xmat
-            arr = np.array(xmat)
-            if arr.ndim == 2 and arr.shape[1] == 9:
-                chest_mat = arr[chest_body_id].reshape(3, 3)
+    # --- c_chestのIMU計算（mj_step直後）---
+    # 姿勢
+    xmat = data.xmat
+    arr = np.array(xmat)
+    if arr.ndim == 2 and arr.shape[1] == 9:
+        chest_mat = arr[chest_body_id].reshape(3, 3)
+    else:
+        flat = arr.flatten()
+        start_idx = chest_body_id * 9
+        end_idx = (chest_body_id + 1) * 9
+        if end_idx <= flat.size:
+            chest_mat = flat[start_idx:end_idx].reshape(3, 3)
+        else:
+            chest_mat = np.eye(3)
+    yaw = math.atan2(float(chest_mat[1, 0]), float(chest_mat[0, 0]))
+    pitch = math.asin(max(-1.0, min(1.0, -float(chest_mat[2, 0]))))
+    roll = math.atan2(float(chest_mat[2, 1]), float(chest_mat[2, 2]))
+    yaw_deg = math.degrees(yaw)
+    pitch_deg = math.degrees(pitch)
+    roll_deg = math.degrees(roll)
+    # 角速度（data.cvel: shape=(nbody, 6)）
+    ang_vel = Vector3(0.0, 0.0, 0.0)
+    try:
+        cvel = np.array(data.cvel)
+        if cvel.ndim == 2 and cvel.shape[1] >= 6:
+            wx, wy, wz = cvel[chest_body_id, 3:6]
+        else:
+            flat = cvel.flatten()
+            start_idx = chest_body_id * 6
+            end_idx = (chest_body_id + 1) * 6
+            if end_idx <= flat.size:
+                seg = flat[start_idx:end_idx]
+                wx, wy, wz = seg[3:6]
             else:
-                flat = arr.flatten()
-                start = chest_body_id * 9
-                end = (chest_body_id + 1) * 9
-                if end <= flat.size:
-                    chest_mat = flat[start:end].reshape(3, 3)
-                else:
-                    chest_mat = np.eye(3)
-
-            # オイラー角（ZYX）
-            yaw = math.atan2(float(chest_mat[1, 0]), float(chest_mat[0, 0]))
-            pitch = math.asin(max(-1.0, min(1.0, -float(chest_mat[2, 0]))))
-            roll = math.atan2(float(chest_mat[2, 1]), float(chest_mat[2, 2]))
-
-            # 角速度抽出（data.xvel を参照）
-            ang_vel = Vector3(0.0, 0.0, 0.0)
-            try:
-                xvel = np.array(data.xvel)
-                if xvel.ndim == 2 and xvel.shape[1] >= 6:
-                    wx, wy, wz = xvel[chest_body_id, 3:6]
-                    ang_vel = Vector3(float(wx), float(wy), float(wz))
-                else:
-                    flat = xvel.flatten()
-                    start = chest_body_id * 6
-                    end = (chest_body_id + 1) * 6
-                    if end <= flat.size:
-                        seg = flat[start:end]
-                        wx, wy, wz = seg[3:6]
-                        ang_vel = Vector3(float(wx), float(wy), float(wz))
-            except Exception:
-                pass
-
-            # gravity -> linear_acceleration
-            try:
-                g = model.opt.gravity
-                lin_acc = Vector3(float(g[0]), float(g[1]), float(g[2]))
-            except Exception:
-                lin_acc = Vector3(0.0, 0.0, 0.0)
-
-            imu_mjc = Imu(
-                header=Header(stamp=time.time(), frame_id="c_chest"),
-                orientation=Vector3(math.degrees(roll), math.degrees(pitch), math.degrees(yaw)),
-                angular_velocity=ang_vel,
-                linear_acceleration=lin_acc
-            )
-
-            time.sleep(0.01)
-        except Exception:
-            pass
+                wx, wy, wz = 0.0, 0.0, 0.0
+        ang_vel = Vector3(math.degrees(float(wx)), math.degrees(float(wy)), math.degrees(float(wz)))
+    except Exception as e:
+        print(f"[mainloop] 角速度取得エラー: {e}")
+        ang_vel = Vector3(0.0, 0.0, 0.0)
+    # 加速度
+    try:
+        g = model.opt.gravity
+        lin_acc = Vector3(float(g[0]), float(g[1]), float(g[2]))
+    except Exception:
+        lin_acc = Vector3(0.0, 0.0, 0.0)
+    imu_mjc = Imu(
+        header=Header(stamp=time.time(), frame_id="c_chest"),
+        orientation=Vector3(roll_deg, pitch_deg, yaw_deg),
+        angular_velocity=ang_vel,
+        linear_acceleration=lin_acc
+    )
+    # デバッグ表示
+    print(f"IMU Debug Info - Time: {time.time()}")
+    print(f"  Orientation (deg): {imu_mjc.orientation}")
+    print(f"  Angular Velocity (deg/s): {imu_mjc.angular_velocity}")
+    print(f"  Linear Acceleration (m/s^2): {imu_mjc.linear_acceleration}")
 
 
-# chest imu スレッドを開始
-chest_thread = threading.Thread(target=chest_imu_thread, daemon=True)
-chest_thread.start()
-
-    #time.sleep(0.001)            # 制御ループ：Hz
