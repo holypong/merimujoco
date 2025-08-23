@@ -48,7 +48,8 @@ class Vector3:
 @dataclass
 class Imu:
     header: Header
-    orientation: Quaternion
+    # orientation を Quaternion から roll/pitch/yaw を格納する Vector3 に変更
+    orientation: Vector3
     orientation_covariance: List[float] = field(default_factory=lambda: [0.0]*9)
     angular_velocity: Vector3 = field(default_factory=Vector3)
     linear_acceleration: Vector3 = field(default_factory=lambda: Vector3(0.0, 0.0, 0.0))
@@ -138,7 +139,8 @@ viewer = launch_passive(model, data)
 mdata = [0.0] * 90  # 初期化
 imu_mjc = Imu(
     header=Header(stamp=0.0, frame_id="c_chest"),
-    orientation=Quaternion(x=0.0, y=0.0, z=0.0, w=1.0),
+    # orientation を roll/pitch/yaw(deg) として保持する
+    orientation=Vector3(0.0, 0.0, 0.0),
     angular_velocity=Vector3(0.0, 0.0, 0.0),
     linear_acceleration=Vector3(0.0, 0.0, 0.0)
 )
@@ -162,13 +164,13 @@ def motor_controller_thread():
                     #print(f"rcv data: {rcv_data}") # meridian -> redis データを確認
 
                     # IMU
+                    # 受信側 imu は roll/pitch/yaw を直接使う想定（deg）
                     imu_r = Imu(
                         header=Header(stamp=0.0, frame_id="base"),
-                        orientation=Quaternion(
+                        orientation=Vector3(
                             x=float(rcv_data[12]),
                             y=float(rcv_data[13]),
-                            z=float(rcv_data[14]),
-                            w=1.0
+                            z=float(rcv_data[14])
                         ),
                         angular_velocity=Vector3(
                             x=float(rcv_data[5]),
@@ -292,6 +294,11 @@ def chest_imu_thread():
             pitch = math.asin(max(-1.0, min(1.0, -float(chest_mat[2, 0]))))
             roll = math.atan2(float(chest_mat[2, 1]), float(chest_mat[2, 2]))
 
+            # RPY を度に変換（デバッグ表示用）
+            yaw_deg = math.degrees(yaw)
+            pitch_deg = math.degrees(pitch)
+            roll_deg = math.degrees(roll)
+
             # RPY -> quaternion
             cy = math.cos(yaw * 0.5)
             sy = math.sin(yaw * 0.5)
@@ -310,7 +317,8 @@ def chest_imu_thread():
                 xvel = np.array(data.xvel)
                 if xvel.ndim == 2 and xvel.shape[1] >= 6:
                     wx, wy, wz = xvel[chest_body_id, 3:6]
-                    ang_vel = Vector3(float(wx), float(wy), float(wz))
+                    # data.xvel の角速度は rad/s の想定なので deg/s に変換して格納
+                    ang_vel = Vector3(math.degrees(float(wx)), math.degrees(float(wy)), math.degrees(float(wz)))
                 else:
                     flat = xvel.flatten()
                     start = chest_body_id * 6
@@ -318,7 +326,7 @@ def chest_imu_thread():
                     if end <= flat.size:
                         seg = flat[start:end]
                         wx, wy, wz = seg[3:6]
-                        ang_vel = Vector3(float(wx), float(wy), float(wz))
+                        ang_vel = Vector3(math.degrees(float(wx)), math.degrees(float(wy)), math.degrees(float(wz)))
             except Exception:
                 pass
 
@@ -331,7 +339,8 @@ def chest_imu_thread():
 
             imu_mjc = Imu(
                 header=Header(stamp=time.time(), frame_id="c_chest"),
-                orientation=Quaternion(x=qx, y=qy, z=qz, w=qw),
+                # orientation は roll/pitch/yaw(deg)
+                orientation=Vector3(roll_deg, pitch_deg, yaw_deg),
                 angular_velocity=ang_vel,
                 linear_acceleration=lin_acc
             )
@@ -434,7 +443,8 @@ def chest_imu_thread():
 
             imu_mjc = Imu(
                 header=Header(stamp=time.time(), frame_id="c_chest"),
-                orientation=Quaternion(x=qx, y=qy, z=qz, w=qw),
+                # store roll/pitch/yaw in degrees instead of quaternion
+                orientation=Vector3(math.degrees(roll), math.degrees(pitch), math.degrees(yaw)),
                 angular_velocity=ang_vel,
                 linear_acceleration=lin_acc
             )
