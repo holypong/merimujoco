@@ -51,6 +51,7 @@ class Imu:
     orientation: Quaternion
     orientation_covariance: List[float] = field(default_factory=lambda: [0.0]*9)
     angular_velocity: Vector3 = field(default_factory=Vector3)
+    linear_acceleration: Vector3 = field(default_factory=lambda: Vector3(0.0, 0.0, 0.0))
     angular_velocity_covariance: List[float] = field(default_factory=lambda: [0.0]*9)
 
 @dataclass
@@ -135,11 +136,16 @@ model.geom_friction[:, :] = [2.0, 0.01, 0.001]  # 足裏の滑り防止
 viewer = launch_passive(model, data)
 
 mdata = [0.0] * 90  # 初期化
+imu_mjc = Imu(
+    header=Header(stamp=0.0, frame_id="c_chest"),
+    orientation=Quaternion(x=0.0, y=0.0, z=0.0, w=1.0),
+    angular_velocity=Vector3(0.0, 0.0, 0.0),
+    linear_acceleration=Vector3(0.0, 0.0, 0.0)
+)
 
 def motor_controller_thread():
+    global imu_mjc
     while True:
-        
-
         if FLG_SET_RCVD and elapsed >= MOT_START_TIME:  # データ受信フラグが立っていて、開始時間を超えたら
             # meridis2キーからデータを読み込む
             #start_time = time.perf_counter()
@@ -183,8 +189,8 @@ def motor_controller_thread():
                         angular=Vector3(x=0.0, y=0.0, z=ang_vel_z)     # z:z軸=yaw軸旋回
                     )
 
-                    # imuとcmd_velのデータを表示
-                    print(f"[Debug] real-sensor: {imu_r.orientation.x}, {imu_r.orientation.y}, {imu_r.orientation.z} + cmd_vel: {cmd_vel.linear.x}, {cmd_vel.linear.y}, {cmd_vel.angular.z}, cmd_btn: {cmd_btn}")
+                    # 受信したimuとcmd_velのデータを表示
+                    # print(f"[Debug] rcv: {imu_r.orientation.x}, {imu_r.orientation.y}, {imu_r.orientation.z} + cmd_vel: {cmd_vel.linear.x}, {cmd_vel.linear.y}, {cmd_vel.angular.z}, cmd_btn: {cmd_btn}")
 
                     for joint_name, meridis_index in joint_to_meridis.items():
                         if joint_name in joint_names:
@@ -229,7 +235,6 @@ def motor_controller_thread():
 
                             mdata[meridis_index[0]] = round(np.degrees(float(data.ctrl[joint_idx])), 2)
 
-    
                 joint_idx = joint_names.index("c_head")  # c_headのインデックスを取得
                 data.ctrl[joint_idx] = 1.0 * ang_vel_z
                 mdata[joint_to_meridis["c_head"][0]] = round(np.degrees(float(data.ctrl[joint_idx])), 2)
@@ -245,12 +250,100 @@ def motor_controller_thread():
                 #elapsed_time = time.perf_counter() - start_time
                 #print(f"transfer elapsed time: {elapsed_time*1000000:.2f} microseconds ({elapsed_time:.6f} seconds)")
 
+                # mujocoのIMUデータを小数点2桁で表示
+                print(f"[Debug] mjc: {imu_mjc.orientation.x:.2f}, {imu_mjc.orientation.y:.2f}, {imu_mjc.orientation.z:.2f}")
+
+
         time.sleep(0.02)  # 10ms待機
 
 # スレッドを開始
 mot_ctrl_thread = threading.Thread(target=motor_controller_thread, daemon=True)
 mot_ctrl_thread.start()
 
+# --- c_chest の姿勢・角速度・重力を計算して imu_mjc に格納するスレッド ---
+# imu_mjc は既に初期化済み（ゼロ値の Imu）。チェストスレッドは最初の有効値で上書きします。
+def chest_imu_thread():
+    global imu_mjc
+    # chest body id はスレッド開始時に取得
+    chest_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "c_chest")
+    while True:
+        try:
+            # スレッドはメインのフラグと時間を参照して動作
+            if not (FLG_SET_RCVD and elapsed >= MOT_START_TIME):
+                time.sleep(0.01)
+                continue
+
+            # xmat から chest の姿勢行列を取得（堅牢に）
+            xmat = data.xmat
+            arr = np.array(xmat)
+            if arr.ndim == 2 and arr.shape[1] == 9:
+                chest_mat = arr[chest_body_id].reshape(3, 3)
+            else:
+                flat = arr.flatten()
+                start = chest_body_id * 9
+                end = (chest_body_id + 1) * 9
+                if end <= flat.size:
+                    chest_mat = flat[start:end].reshape(3, 3)
+                else:
+                    chest_mat = np.eye(3)
+
+            # オイラー角（ZYX）
+            yaw = math.atan2(float(chest_mat[1, 0]), float(chest_mat[0, 0]))
+            pitch = math.asin(max(-1.0, min(1.0, -float(chest_mat[2, 0]))))
+            roll = math.atan2(float(chest_mat[2, 1]), float(chest_mat[2, 2]))
+
+            # RPY -> quaternion
+            cy = math.cos(yaw * 0.5)
+            sy = math.sin(yaw * 0.5)
+            cp = math.cos(pitch * 0.5)
+            sp = math.sin(pitch * 0.5)
+            cr = math.cos(roll * 0.5)
+            sr = math.sin(roll * 0.5)
+            qw = cr * cp * cy + sr * sp * sy
+            qx = sr * cp * cy - cr * sp * sy
+            qy = cr * sp * cy + sr * cp * sy
+            qz = cr * cp * sy - sr * sp * cy
+
+            # 角速度抽出（data.xvel を参照）
+            ang_vel = Vector3(0.0, 0.0, 0.0)
+            try:
+                xvel = np.array(data.xvel)
+                if xvel.ndim == 2 and xvel.shape[1] >= 6:
+                    wx, wy, wz = xvel[chest_body_id, 3:6]
+                    ang_vel = Vector3(float(wx), float(wy), float(wz))
+                else:
+                    flat = xvel.flatten()
+                    start = chest_body_id * 6
+                    end = (chest_body_id + 1) * 6
+                    if end <= flat.size:
+                        seg = flat[start:end]
+                        wx, wy, wz = seg[3:6]
+                        ang_vel = Vector3(float(wx), float(wy), float(wz))
+            except Exception:
+                pass
+
+            # gravity -> linear_acceleration
+            try:
+                g = model.opt.gravity
+                lin_acc = Vector3(float(g[0]), float(g[1]), float(g[2]))
+            except Exception:
+                lin_acc = Vector3(0.0, 0.0, 0.0)
+
+            imu_mjc = Imu(
+                header=Header(stamp=time.time(), frame_id="c_chest"),
+                orientation=Quaternion(x=qx, y=qy, z=qz, w=qw),
+                angular_velocity=ang_vel,
+                linear_acceleration=lin_acc
+            )
+
+            time.sleep(0.01)
+        except Exception:
+            pass
+
+
+# chest imu スレッドを開始
+chest_thread = threading.Thread(target=chest_imu_thread, daemon=True)
+chest_thread.start()
 
 # メインループで制御＋mj_step
 start_time = time.time()
@@ -267,71 +360,92 @@ while viewer.is_running():
     viewer.sync()                # 描画更新
 
 
-    # --- c_chestのroll, pitch, yawをモニタリング ---
-    # body_idを取得
+    # c_chest の IMU 計算は別スレッドに移動しました（変数 imu_mjc を参照してください）
+
+
+# --- c_chest の姿勢・角速度・重力を計算して imu_mjc に格納するスレッド ---
+# imu_mjc は既に初期化済み（ゼロ値の Imu）。チェストスレッドは最初の有効値で上書きします。
+def chest_imu_thread():
+    global imu_mjc
+    # chest body id はスレッド開始時に取得
     chest_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "c_chest")
-    # data.xmat の形式に依存しないように取得を堅牢化
-    xmat = data.xmat
-    chest_mat = None
-    try:
-        arr = np.array(xmat)
-        # 2次元配列 (n_bodies, 9) の場合は行をそのまま使う
-        if arr.ndim == 2 and arr.shape[1] == 9:
-            chest_row = arr[chest_body_id]
-            chest_mat = chest_row.reshape(3, 3)
-        else:
-            # 1次元配列の場合はインデックス計算
-            start = chest_body_id * 9
-            end = (chest_body_id + 1) * 9
-            flat = arr.flatten()
-            if end <= flat.size:
-                chest_mat = flat[start:end].reshape(3, 3)
+    while True:
+        try:
+            # スレッドはメインのフラグと時間を参照して動作
+            if not (FLG_SET_RCVD and elapsed >= MOT_START_TIME):
+                time.sleep(0.01)
+                continue
+
+            # xmat から chest の姿勢行列を取得（堅牢に）
+            xmat = data.xmat
+            arr = np.array(xmat)
+            if arr.ndim == 2 and arr.shape[1] == 9:
+                chest_mat = arr[chest_body_id].reshape(3, 3)
             else:
-                # 想定外のサイズ。デバッグ情報を出力して先頭9要素を使う
-                print(f"[Warning] unexpected xmat size={flat.size}, chest_body_id={chest_body_id}")
-                print(f"xmat.shape={np.shape(xmat)}\nfull xmat sample={flat[:min(36, flat.size)]}")
-                if flat.size >= 9:
-                    chest_mat = flat[:9].reshape(3, 3)
+                flat = arr.flatten()
+                start = chest_body_id * 9
+                end = (chest_body_id + 1) * 9
+                if end <= flat.size:
+                    chest_mat = flat[start:end].reshape(3, 3)
                 else:
-                    # 最終手段: 単位行列を使う
                     chest_mat = np.eye(3)
-    except Exception as e:
-        print(f"[Error] failed to extract chest xmat: {e}")
-        chest_mat = np.eye(3)
-    # オイラー角に変換（ZYX順：yaw, pitch, roll）
-    def mat2euler(m):
-        # m: 3x3行列
-        yaw = math.atan2(float(m[1, 0]), float(m[0, 0]))
-        pitch = math.asin(-float(m[2, 0]))
-        roll = math.atan2(float(m[2, 1]), float(m[2, 2]))
-        return roll, pitch, yaw
-    roll, pitch, yaw = mat2euler(chest_mat)
 
-    # roll,pitch,yaw (radians) を quaternion に変換して imu 構造体に格納
-    def euler_to_quat(roll, pitch, yaw):
-        # ZYX (yaw, pitch, roll) -> quaternion
-        cy = math.cos(yaw * 0.5)
-        sy = math.sin(yaw * 0.5)
-        cp = math.cos(pitch * 0.5)
-        sp = math.sin(pitch * 0.5)
-        cr = math.cos(roll * 0.5)
-        sr = math.sin(roll * 0.5)
-        w = cr * cp * cy + sr * sp * sy
-        x = sr * cp * cy - cr * sp * sy
-        y = cr * sp * cy + sr * cp * sy
-        z = cr * cp * sy - sr * sp * cy
-        return x, y, z, w
+            # オイラー角（ZYX）
+            yaw = math.atan2(float(chest_mat[1, 0]), float(chest_mat[0, 0]))
+            pitch = math.asin(max(-1.0, min(1.0, -float(chest_mat[2, 0]))))
+            roll = math.atan2(float(chest_mat[2, 1]), float(chest_mat[2, 2]))
 
-    qx, qy, qz, qw = euler_to_quat(roll, pitch, yaw)
+            # RPY -> quaternion
+            cy = math.cos(yaw * 0.5)
+            sy = math.sin(yaw * 0.5)
+            cp = math.cos(pitch * 0.5)
+            sp = math.sin(pitch * 0.5)
+            cr = math.cos(roll * 0.5)
+            sr = math.sin(roll * 0.5)
+            qw = cr * cp * cy + sr * sp * sy
+            qx = sr * cp * cy - cr * sp * sy
+            qy = cr * sp * cy + sr * cp * sy
+            qz = cr * cp * sy - sr * sp * cy
 
-    imu_mjc = Imu(
-        header=Header(stamp=time.time(), frame_id="c_chest"),
-        orientation=Quaternion(x=qx, y=qy, z=qz, w=qw),
-        angular_velocity=Vector3(x=0.0, y=0.0, z=0.0)
-    )
+            # 角速度抽出（data.xvel を参照）
+            ang_vel = Vector3(0.0, 0.0, 0.0)
+            try:
+                xvel = np.array(data.xvel)
+                if xvel.ndim == 2 and xvel.shape[1] >= 6:
+                    wx, wy, wz = xvel[chest_body_id, 3:6]
+                    ang_vel = Vector3(float(wx), float(wy), float(wz))
+                else:
+                    flat = xvel.flatten()
+                    start = chest_body_id * 6
+                    end = (chest_body_id + 1) * 6
+                    if end <= flat.size:
+                        seg = flat[start:end]
+                        wx, wy, wz = seg[3:6]
+                        ang_vel = Vector3(float(wx), float(wy), float(wz))
+            except Exception:
+                pass
 
-    # 画面出力（度とクォータニオン）
-    print(f"c_chest RPY(deg): roll={math.degrees(roll):.2f}, pitch={math.degrees(pitch):.2f}, yaw={math.degrees(yaw):.2f}")
-    print(f"imu_mjc.orientation (quat): x={qx:.4f}, y={qy:.4f}, z={qz:.4f}, w={qw:.4f}")
+            # gravity -> linear_acceleration
+            try:
+                g = model.opt.gravity
+                lin_acc = Vector3(float(g[0]), float(g[1]), float(g[2]))
+            except Exception:
+                lin_acc = Vector3(0.0, 0.0, 0.0)
+
+            imu_mjc = Imu(
+                header=Header(stamp=time.time(), frame_id="c_chest"),
+                orientation=Quaternion(x=qx, y=qy, z=qz, w=qw),
+                angular_velocity=ang_vel,
+                linear_acceleration=lin_acc
+            )
+
+            time.sleep(0.01)
+        except Exception:
+            pass
+
+
+# chest imu スレッドを開始
+chest_thread = threading.Thread(target=chest_imu_thread, daemon=True)
+chest_thread.start()
 
     #time.sleep(0.001)            # 制御ループ：Hz
