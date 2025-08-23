@@ -33,13 +33,6 @@ class Header:
     frame_id: str
 
 @dataclass
-class Quaternion:
-    x: float
-    y: float
-    z: float
-    w: float
-
-@dataclass
 class Vector3:
     x: float
     y: float
@@ -48,7 +41,6 @@ class Vector3:
 @dataclass
 class Imu:
     header: Header
-    # orientation を Quaternion から roll/pitch/yaw を格納する Vector3 に変更
     orientation: Vector3
     orientation_covariance: List[float] = field(default_factory=lambda: [0.0]*9)
     angular_velocity: Vector3 = field(default_factory=Vector3)
@@ -299,18 +291,6 @@ def chest_imu_thread():
             pitch_deg = math.degrees(pitch)
             roll_deg = math.degrees(roll)
 
-            # RPY -> quaternion
-            cy = math.cos(yaw * 0.5)
-            sy = math.sin(yaw * 0.5)
-            cp = math.cos(pitch * 0.5)
-            sp = math.sin(pitch * 0.5)
-            cr = math.cos(roll * 0.5)
-            sr = math.sin(roll * 0.5)
-            qw = cr * cp * cy + sr * sp * sy
-            qx = sr * cp * cy - cr * sp * sy
-            qy = cr * sp * cy + sr * cp * sy
-            qz = cr * cp * sy - sr * sp * cy
-
             # 角速度抽出（data.xvel を参照）
             ang_vel = Vector3(0.0, 0.0, 0.0)
             try:
@@ -404,18 +384,6 @@ def chest_imu_thread():
             pitch = math.asin(max(-1.0, min(1.0, -float(chest_mat[2, 0]))))
             roll = math.atan2(float(chest_mat[2, 1]), float(chest_mat[2, 2]))
 
-            # RPY -> quaternion
-            cy = math.cos(yaw * 0.5)
-            sy = math.sin(yaw * 0.5)
-            cp = math.cos(pitch * 0.5)
-            sp = math.sin(pitch * 0.5)
-            cr = math.cos(roll * 0.5)
-            sr = math.sin(roll * 0.5)
-            qw = cr * cp * cy + sr * sp * sy
-            qx = sr * cp * cy - cr * sp * sy
-            qy = cr * sp * cy + sr * cp * sy
-            qz = cr * cp * sy - sr * sp * cy
-
             # 角速度抽出（data.xvel を参照）
             ang_vel = Vector3(0.0, 0.0, 0.0)
             try:
@@ -443,7 +411,6 @@ def chest_imu_thread():
 
             imu_mjc = Imu(
                 header=Header(stamp=time.time(), frame_id="c_chest"),
-                # store roll/pitch/yaw in degrees instead of quaternion
                 orientation=Vector3(math.degrees(roll), math.degrees(pitch), math.degrees(yaw)),
                 angular_velocity=ang_vel,
                 linear_acceleration=lin_acc
