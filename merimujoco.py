@@ -156,7 +156,7 @@ def motor_controller_thread():
                     #print(f"rcv data: {rcv_data}") # meridian -> redis データを確認
 
                     # IMU
-                    imu = Imu(
+                    imu_r = Imu(
                         header=Header(stamp=0.0, frame_id="base"),
                         orientation=Quaternion(
                             x=float(rcv_data[12]),
@@ -184,7 +184,7 @@ def motor_controller_thread():
                     )
 
                     # imuとcmd_velのデータを表示
-                    print(f"[Debug] real-sensor: {imu.orientation.x}, {imu.orientation.y}, {imu.orientation.z} + cmd_vel: {cmd_vel.linear.x}, {cmd_vel.linear.y}, {cmd_vel.angular.z}, cmd_btn: {cmd_btn}")
+                    print(f"[Debug] real-sensor: {imu_r.orientation.x}, {imu_r.orientation.y}, {imu_r.orientation.z} + cmd_vel: {cmd_vel.linear.x}, {cmd_vel.linear.y}, {cmd_vel.angular.z}, cmd_btn: {cmd_btn}")
 
                     for joint_name, meridis_index in joint_to_meridis.items():
                         if joint_name in joint_names:
@@ -265,5 +265,73 @@ while viewer.is_running():
     # mj_stepを呼び出し
     mujoco.mj_step(model, data)  # ステップ更新
     viewer.sync()                # 描画更新
+
+
+    # --- c_chestのroll, pitch, yawをモニタリング ---
+    # body_idを取得
+    chest_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "c_chest")
+    # data.xmat の形式に依存しないように取得を堅牢化
+    xmat = data.xmat
+    chest_mat = None
+    try:
+        arr = np.array(xmat)
+        # 2次元配列 (n_bodies, 9) の場合は行をそのまま使う
+        if arr.ndim == 2 and arr.shape[1] == 9:
+            chest_row = arr[chest_body_id]
+            chest_mat = chest_row.reshape(3, 3)
+        else:
+            # 1次元配列の場合はインデックス計算
+            start = chest_body_id * 9
+            end = (chest_body_id + 1) * 9
+            flat = arr.flatten()
+            if end <= flat.size:
+                chest_mat = flat[start:end].reshape(3, 3)
+            else:
+                # 想定外のサイズ。デバッグ情報を出力して先頭9要素を使う
+                print(f"[Warning] unexpected xmat size={flat.size}, chest_body_id={chest_body_id}")
+                print(f"xmat.shape={np.shape(xmat)}\nfull xmat sample={flat[:min(36, flat.size)]}")
+                if flat.size >= 9:
+                    chest_mat = flat[:9].reshape(3, 3)
+                else:
+                    # 最終手段: 単位行列を使う
+                    chest_mat = np.eye(3)
+    except Exception as e:
+        print(f"[Error] failed to extract chest xmat: {e}")
+        chest_mat = np.eye(3)
+    # オイラー角に変換（ZYX順：yaw, pitch, roll）
+    def mat2euler(m):
+        # m: 3x3行列
+        yaw = math.atan2(float(m[1, 0]), float(m[0, 0]))
+        pitch = math.asin(-float(m[2, 0]))
+        roll = math.atan2(float(m[2, 1]), float(m[2, 2]))
+        return roll, pitch, yaw
+    roll, pitch, yaw = mat2euler(chest_mat)
+
+    # roll,pitch,yaw (radians) を quaternion に変換して imu 構造体に格納
+    def euler_to_quat(roll, pitch, yaw):
+        # ZYX (yaw, pitch, roll) -> quaternion
+        cy = math.cos(yaw * 0.5)
+        sy = math.sin(yaw * 0.5)
+        cp = math.cos(pitch * 0.5)
+        sp = math.sin(pitch * 0.5)
+        cr = math.cos(roll * 0.5)
+        sr = math.sin(roll * 0.5)
+        w = cr * cp * cy + sr * sp * sy
+        x = sr * cp * cy - cr * sp * sy
+        y = cr * sp * cy + sr * cp * sy
+        z = cr * cp * sy - sr * sp * cy
+        return x, y, z, w
+
+    qx, qy, qz, qw = euler_to_quat(roll, pitch, yaw)
+
+    imu_mjc = Imu(
+        header=Header(stamp=time.time(), frame_id="c_chest"),
+        orientation=Quaternion(x=qx, y=qy, z=qz, w=qw),
+        angular_velocity=Vector3(x=0.0, y=0.0, z=0.0)
+    )
+
+    # 画面出力（度とクォータニオン）
+    print(f"c_chest RPY(deg): roll={math.degrees(roll):.2f}, pitch={math.degrees(pitch):.2f}, yaw={math.degrees(yaw):.2f}")
+    print(f"imu_mjc.orientation (quat): x={qx:.4f}, y={qy:.4f}, z={qz:.4f}, w={qw:.4f}")
 
     #time.sleep(0.001)            # 制御ループ：Hz
