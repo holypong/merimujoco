@@ -23,6 +23,7 @@ CMD_VEL_GAIN = 1.0              # cmd_velのゲイン (0~1)
 FLG_SET_RCVD = True             # Redisからのデータ受信フラグ
 FLG_CREATE_CTRL = False          # 制御信号作成フラグ
 FLG_SET_SNDD = True             # Redisへのデータ送信フラグ
+FLG_RESET_REQUEST = False       # リセット要求フラグ
 
 MOT_START_FRAME = 200   # 開始フレーム
 MOT_START_TIME = 1.0  # 開始時間
@@ -138,7 +139,7 @@ imu_mjc = Imu(
 )
 
 def motor_controller_thread():
-    global imu_mjc
+    global imu_mjc, FLG_RESET_REQUEST
     while True:
         if FLG_SET_RCVD and elapsed >= MOT_START_TIME:  # データ受信フラグが立っていて、開始時間を超えたら
             # meridis2キーからデータを読み込む
@@ -156,12 +157,9 @@ def motor_controller_thread():
                     #print(f"rcv data: {rcv_data}") # meridian -> redis データを確認
 
                     if rcv_data[0] == 5556:
-                        # meridian -> redis データを確認
-                        print(f"[mainloop] mujoco reset {rcv_data[0]}")
-                        mujoco.mj_resetData(model, data)  # mujocoシミュレータをリセット
-                        mujoco.mj_forward(model, data)  # センサーやカスタムアクションを更新
-                        
-                        viewer.sync()  # 描画も即時リセット
+                        # リセット要求フラグを立てる（メインループで実行）
+                        print(f"[motor_controller_thread] mujoco reset request {rcv_data[0]}")
+                        FLG_RESET_REQUEST = True
 
                         
                     # IMU
@@ -283,6 +281,16 @@ chest_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "c_chest")
 while viewer.is_running():
     total_frames += 1
     elapsed = time.time() - start_time
+
+    # リセット要求がある場合はリセットを実行
+    if FLG_RESET_REQUEST:
+        print(f"[mainloop] executing mujoco reset")
+        mujoco.mj_resetData(model, data)
+        mujoco.mj_forward(model, data)
+        viewer.sync()
+        FLG_RESET_REQUEST = False
+        print(f"[mainloop] reset completed")
+        continue
 
     mujoco.mj_step(model, data)  # ステップ更新
     viewer.sync()                # 描画更新
