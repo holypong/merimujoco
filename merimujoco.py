@@ -113,13 +113,13 @@ data = mujoco.MjData(model)
 
 
 # --- 起動時に強制的に物理パラメータを上書き ---
-model.opt.gravity[:] = [0, 0, -4.9]           # 重力を半分に
+model.opt.gravity[:] = [0, 0, -9.8]           # 重力を半分に
 model.opt.timestep = 0.001                    # タイムステップ調整
 model.opt.integrator = mujoco.mjtIntegrator.mjINT_RK4  # 安定な積分器に変更
 # 全関節の減衰（damping）を強制上書き
 model.dof_damping[:] = 5.0                    # ブレ防止
 # 全geomの摩擦係数を上書き（静止摩擦、動摩擦、粘着摩擦）
-model.geom_friction[:, :] = [2.0, 0.01, 0.001]  # 足裏の滑り防止
+model.geom_friction[:, :] = [1.2, 0.8, 0.01]  # 着地安定化用の摩擦調整
 
 
 
