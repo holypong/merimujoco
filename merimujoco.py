@@ -112,7 +112,7 @@ data = mujoco.MjData(model)
 
 
 # --- 起動時に強制的に物理パラメータを上書き ---
-model.opt.gravity[:] = [0, 0, -4.9]           # 重力を半分に
+model.opt.gravity[:] = [0, 0, -9.8]           # 重力を半分に
 model.opt.timestep = 0.001                    # タイムステップ調整
 model.opt.integrator = mujoco.mjtIntegrator.mjINT_RK4  # 安定な積分器に変更
 
@@ -155,6 +155,15 @@ def motor_controller_thread():
                     # データの更新
                     #print(f"rcv data: {rcv_data}") # meridian -> redis データを確認
 
+                    if rcv_data[0] == 5556:
+                        # meridian -> redis データを確認
+                        print(f"[mainloop] mujoco reset {rcv_data[0]}")
+                        mujoco.mj_resetData(model, data)  # mujocoシミュレータをリセット
+                        mujoco.mj_forward(model, data)  # センサーやカスタムアクションを更新
+                        
+                        viewer.sync()  # 描画も即時リセット
+
+                        
                     # IMU
                     # 受信側 imu は roll/pitch/yaw を直接使う想定（deg）
                     imu_r = Imu(
@@ -317,11 +326,15 @@ while viewer.is_running():
     except Exception as e:
         print(f"[mainloop] 角速度取得エラー: {e}")
         ang_vel = Vector3(0.0, 0.0, 0.0)
-    # 加速度
+    # 加速度（重力ベクトルをc_chest座標系へ変換）
     try:
-        g = model.opt.gravity
-        lin_acc = Vector3(float(g[0]), float(g[1]), float(g[2]))
-    except Exception:
+        g = np.array(model.opt.gravity)  # shape=(3,)
+        # chest_mat: ワールド→c_chest の回転行列
+        # gはワールド座標系なので、c_chest座標系へは R^T @ g
+        lin_acc_arr = chest_mat.T @ g
+        lin_acc = Vector3(float(lin_acc_arr[0]), float(lin_acc_arr[1]), float(lin_acc_arr[2]))
+    except Exception as e:
+        print(f"[mainloop] 重力変換エラー: {e}")
         lin_acc = Vector3(0.0, 0.0, 0.0)
     imu_mjc = Imu(
         header=Header(stamp=time.time(), frame_id="c_chest"),
@@ -330,9 +343,9 @@ while viewer.is_running():
         linear_acceleration=lin_acc
     )
     # デバッグ表示
-    print(f"IMU Debug Info - Time: {time.time()}")
-    print(f"  Orientation (deg): {imu_mjc.orientation}")
-    print(f"  Angular Velocity (deg/s): {imu_mjc.angular_velocity}")
-    print(f"  Linear Acceleration (m/s^2): {imu_mjc.linear_acceleration}")
+    #print(f"IMU Debug Info - Time: {time.time()}")
+    #print(f"  Orientation (deg): {imu_mjc.orientation}")
+    #print(f"  Angular Velocity (deg/s): {imu_mjc.angular_velocity}")
+    #print(f"  Linear Acceleration (m/s^2): {imu_mjc.linear_acceleration}")
 
 
