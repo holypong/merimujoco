@@ -9,30 +9,47 @@ import time
 
 # 20250429 redis_plotter.py 新規作成
 
+# Redisサーバー設定（meridis_manager.pyと同じデフォルト値）
+REDIS_HOST = "172.22.95.231"
+REDIS_PORT = 6379
+
+def get_local_ip():
+    """自身のIPアドレスを取得する"""
+    import socket
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        IP = s.getsockname()[0]
+        s.close()
+        return IP
+    except Exception as e:
+        return "Error: " + str(e)
+
 class RedisPlotter:
-    def __init__(self, receiver, fig_width=10, fig_height=6):
+    def __init__(self, receiver, fig_width=10, fig_height=6, enable_log=False):
         self.receiver = receiver
+        self.enable_log = enable_log
         
         # Joint mapping dictionary moved from redis_receiver.py
         self.joint_to_meridis = {
             # Base link
-            "base_roll": 12,
-            "base_pitch": 13,
-            "base_yaw": 14,
+            "base_roll":        12,
+            "base_pitch":       13,
+            "base_yaw":         14,
             # Left leg
-            "l_hip_roll": 33,
-            "l_hip_yaw": 34,
-            "l_thigh_pitch": 35,
-            "l_knee_pitch": 37,
-            "l_ankle_pitch": 39,
-            "l_ankle_roll": 41,
+            "l_hip_yaw":        31,
+            "l_hip_roll":       33,
+            "l_thigh_pitch":    35,
+            "l_knee_pitch":     37,
+            "l_ankle_pitch":    39,
+            "l_ankle_roll":     41,
             # Right leg
-            "r_hip_roll": 63,
-            "r_hip_yaw": 64,
-            "r_thigh_pitch": 65,
-            "r_knee_pitch": 67,
-            "r_ankle_pitch": 69,
-            "r_ankle_roll": 71
+            "r_hip_yaw":        61,
+            "r_hip_roll":       63,
+            "r_thigh_pitch":    65,
+            "r_knee_pitch":     67,
+            "r_ankle_pitch":    69,
+            "r_ankle_roll":     71
         }
         
         # Initialize joint data storage
@@ -76,10 +93,15 @@ class RedisPlotter:
             ax.set_ylim(-180, 180)
 
         # Initialize plot lines with different colors
-        # Base joint colors (using a different colormap for base)
-        base_colors = plt.cm.Set1(np.linspace(0, 1, len(base_joints)))
-        for i, joint in enumerate(base_joints):
-            line, = self.axes[0].plot([], [], label=joint, color=base_colors[i], linewidth=2)
+        # Base joint colors (custom colors for specific joints)
+        base_color_map = {
+            "base_roll": "red",
+            "base_pitch": "lime", 
+            "base_yaw": "cyan"
+        }
+        for joint in base_joints:
+            color = base_color_map.get(joint, "white")  # デフォルトは白
+            line, = self.axes[0].plot([], [], label=joint, color=color, linewidth=2)
             self.base_lines[joint] = line
         
         # Leg joint colors
@@ -179,6 +201,24 @@ class RedisPlotter:
         # genesiseのデータ取得
         joint_data = self.get_joint_data_series(data)
 
+        # ログが有効な場合、ハッシュデータ全体（0-89）をカンマ区切りで出力
+        if self.enable_log and data is not None:
+            data_length = len(data)
+            if data_length >= 90:  # インデックス0-89まで安全にアクセスするため90以上必要
+                # インデックス0-89のデータをカンマ区切りで出力
+                hash_values = [f"{data[i]:.2f}" for i in range(90)]
+                print(f"[Frame {frame}] " + ",".join(hash_values))
+            elif data_length > 0:
+                # データが90未満の場合は利用可能な範囲で出力
+                hash_values = [f"{data[i]:.2f}" for i in range(data_length)]
+                print(f"[Frame {frame}] (partial {data_length}/90) " + ",".join(hash_values))
+            else:
+                # データが0要素の場合は警告を出力
+                print(f"[Frame {frame}] Warning: Data length is {data_length}, expected at least 90")
+        elif self.enable_log:
+            # データがNoneの場合の警告
+            print(f"[Frame {frame}] No data available from Redis")
+
         # 表示可能なデータを取得
         plot_data = self.get_visible_data_series()
         
@@ -214,12 +254,14 @@ class RedisPlotter:
                 self.fig, 
                 self.update_plot, 
                 interval=interval,
-                blit=True
+                blit=False,  # blittingを無効にしてTkinterエラーを回避
+                cache_frame_data=False  # フレームキャッシュを無効にして警告を回避
             )
             plt.show()
         except KeyboardInterrupt:
             print("\nPlotting stopped by user")
         finally:
+            print("Redis Plotter shutting down...")
             plt.close()
 
 
@@ -229,17 +271,32 @@ def main():
     parser.add_argument('--width', type=int, default=8, help='Figure width in inches')
     parser.add_argument('--height', type=int, default=10, help='Figure height in inches')
     parser.add_argument('--window', type=float, default=5.0, help='Time window size in seconds')
+    parser.add_argument('--redis-key', type=str, default='meridis', help='Redis key name to read data from')
+    parser.add_argument('--redis-ip', type=str, default=REDIS_HOST, help=f'Redis server IP address (default: {REDIS_HOST})')
+    parser.add_argument('--log', type=str, default='off', help='Enable logging of base joint values (on/off)')
     args = parser.parse_args()
 
-    # RedisReceiverのインスタンス化
-    receiver = RedisReceiver(window_size=args.window, redis_key='meridis')
+    # 起動時の情報表示（meridis_manager.pyと同じスタイル）
+    print(f"Redis Plotter started. This PC's IP address is {get_local_ip()}")
+    print(f"Connected to Redis at {args.redis_ip}:{REDIS_PORT} for key '{args.redis_key}'")
+    print(f"Plot window: {args.window} seconds, Figure size: {args.width*100}x{args.height*100} pixels")
+    print(f"Log output: {'enabled' if args.log.lower() == 'on' else 'disabled'}")
+    print(f"Animation interval: 10ms")
+    
+    # RedisReceiverのインスタンス化（IPアドレスを指定）
+    receiver = RedisReceiver(host=args.redis_ip, window_size=args.window, redis_key=args.redis_key)
+    
+    # ログ機能の有効/無効を判定
+    enable_log = args.log.lower() == 'on'
     
     # RedisPlotterのインスタンス化と実行
-    plotter = RedisPlotter(receiver, fig_width=args.width, fig_height=args.height)
+    plotter = RedisPlotter(receiver, fig_width=args.width, fig_height=args.height, enable_log=enable_log)
+    print("Starting real-time plotting...")
     plotter.run()
     
     # 終了時にReceiverも閉じる
     receiver.close()
+    print("Redis Plotter resources released.")
 
 
 if __name__ == "__main__":
