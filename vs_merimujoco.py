@@ -62,6 +62,14 @@ joint_names = [
     "r_hip_yaw", "r_hip_roll", "r_thigh_pitch", "r_knee_pitch", "r_ankle_pitch", "r_ankle_roll"
 ]
 
+# Enemy robot joint names
+enemy_joint_names = [
+    "enemy_c_chest", "enemy_c_head", "enemy_l_shoulder_pitch", "enemy_l_shoulder_roll", "enemy_l_elbow_yaw", "enemy_l_elbow_pitch",
+    "enemy_r_shoulder_pitch", "enemy_r_shoulder_roll", "enemy_r_elbow_yaw", "enemy_r_elbow_pitch",
+    "enemy_l_hip_yaw", "enemy_l_hip_roll", "enemy_l_thigh_pitch", "enemy_l_knee_pitch", "enemy_l_ankle_pitch", "enemy_l_ankle_roll",
+    "enemy_r_hip_yaw", "enemy_r_hip_roll", "enemy_r_thigh_pitch", "enemy_r_knee_pitch", "enemy_r_ankle_pitch", "enemy_r_ankle_roll"
+]
+
 
 # Joint mapping dictionary
 joint_to_meridis = {
@@ -97,6 +105,42 @@ joint_to_meridis = {
     "r_knee_pitch":     [67, 1],
     "r_ankle_pitch":    [69, 1],
     "r_ankle_roll":     [71,-1]
+}
+
+# Enemy robot joint mapping (same indices as main robot)
+enemy_joint_to_meridis = {
+    # Base link
+    "enemy_base_roll":        [12, 1],
+    "enemy_base_pitch":       [13, 1],
+    "enemy_base_yaw":         [14, 1],
+    # Head
+    "enemy_c_head":           [21, 1],
+    # Left arm
+    "enemy_l_shoulder_pitch": [23, 1],
+    "enemy_l_shoulder_roll":  [25, 1],
+    "enemy_l_elbow_yaw":      [27, 1],
+    "enemy_l_elbow_pitch":    [29, 1],
+    # Left leg
+    "enemy_l_hip_yaw":        [31, 1],
+    "enemy_l_hip_roll":       [33, 1],
+    "enemy_l_thigh_pitch":    [35, 1],
+    "enemy_l_knee_pitch":     [37, 1],
+    "enemy_l_ankle_pitch":    [39, 1],
+    "enemy_l_ankle_roll":     [41, 1],
+    # chest
+    "enemy_c_chest":          [51, 1],
+    # Right arm
+    "enemy_r_shoulder_pitch": [53, 1],
+    "enemy_r_shoulder_roll":  [55,-1],
+    "enemy_r_elbow_yaw":      [57,-1],
+    "enemy_r_elbow_pitch":    [59, 1],
+    # Right leg
+    "enemy_r_hip_yaw":        [61,-1],
+    "enemy_r_hip_roll":       [63,-1],
+    "enemy_r_thigh_pitch":    [65, 1],
+    "enemy_r_knee_pitch":     [67, 1],
+    "enemy_r_ankle_pitch":    [69, 1],
+    "enemy_r_ankle_roll":     [71,-1]
 }
 
 redis_transfer = RedisTransfer(redis_key=REDIS_KEY_WRITE)
@@ -200,6 +244,18 @@ def motor_controller_thread():
                             data.ctrl[joint_idx] = round(np.radians(float(rcv_data[meridis_idx])*meridis_mul), 2)
                             #print(f"joint_name: {joint_name}, joint_idx: {joint_idx}, ctrl: {data.ctrl[joint_idx]}, mul: {joint_to_meridis[joint_name][1]}")
 
+                    # Update enemy robot joints from redis data
+                    for enemy_joint_name, meridis_index in enemy_joint_to_meridis.items():
+                        if enemy_joint_name in enemy_joint_names:
+                            # Handle joint positions (convert from radians to degrees)
+                            enemy_joint_idx = enemy_joint_names.index(enemy_joint_name)
+                            # enemy joint index offset = number of main robot joints
+                            enemy_ctrl_idx = len(joint_names) + enemy_joint_idx
+                            meridis_idx = enemy_joint_to_meridis[enemy_joint_name][0]
+                            meridis_mul = enemy_joint_to_meridis[enemy_joint_name][1]
+                            data.ctrl[enemy_ctrl_idx] = round(np.radians(float(rcv_data[meridis_idx])*meridis_mul), 2)
+                            #print(f"enemy_joint_name: {enemy_joint_name}, enemy_ctrl_idx: {enemy_ctrl_idx}, ctrl: {data.ctrl[enemy_ctrl_idx]}")
+
                     # mdataの更新 +Hori 20250628
                     for i in range(len(mdata)):
                         if i < len(rcv_data):
@@ -248,6 +304,7 @@ def motor_controller_thread():
                 # mujocoのIMUデータを小数点2桁で表示
                 print(f"[Debug] mjc: {imu_mjc.orientation.x:.2f}, {imu_mjc.orientation.y:.2f}, {imu_mjc.orientation.z:.2f}")
 
+                # Main robot data to Redis
                 mdata[2] = round(imu_mjc.linear_acceleration.x, 4)   # ax(m/s^2)
                 mdata[3] = round(imu_mjc.linear_acceleration.y, 4)   # ay(m/s^2)
                 mdata[4] = round(imu_mjc.linear_acceleration.z, 4)   # az(m/s^2)
@@ -257,6 +314,17 @@ def motor_controller_thread():
                 mdata[12] = round(imu_mjc.orientation.x, 4)   # roll(deg)
                 mdata[13] = round(imu_mjc.orientation.y, 4)   # pitch(deg)
                 mdata[14] = round(imu_mjc.orientation.z, 4)   # yaw(deg)
+                
+                # Enemy robot data to Redis (commented out)
+                # mdata[?] = round(imu_enemy.linear_acceleration.x, 4)   # enemy ax(m/s^2)
+                # mdata[?] = round(imu_enemy.linear_acceleration.y, 4)   # enemy ay(m/s^2)
+                # mdata[?] = round(imu_enemy.linear_acceleration.z, 4)   # enemy az(m/s^2)
+                # mdata[?] = round(imu_enemy.angular_velocity.x, 4)      # enemy wx(deg/s)
+                # mdata[?] = round(imu_enemy.angular_velocity.y, 4)      # enemy wy(deg/s)
+                # mdata[?] = round(imu_enemy.angular_velocity.z, 4)      # enemy wz(deg/s)
+                # mdata[?] = round(imu_enemy.orientation.x, 4)           # enemy roll(deg)
+                # mdata[?] = round(imu_enemy.orientation.y, 4)           # enemy pitch(deg)
+                # mdata[?] = round(imu_enemy.orientation.z, 4)           # enemy yaw(deg)
                 
                 #start_time = time.perf_counter()
                 redis_transfer.set_data(REDIS_KEY_WRITE, mdata)
