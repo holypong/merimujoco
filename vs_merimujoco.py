@@ -166,6 +166,21 @@ model.dof_damping[:] = 5.0                    # ブレ防止
 # 全geomの摩擦係数を上書き（静止摩擦、動摩擦、粘着摩擦）
 model.geom_friction[:, :] = [1.2, 0.8, 0.01]  # 着地安定化用の摩擦調整
 
+# --- enemyロボットの質量を半減 ---
+
+for body_id in range(model.nbody):
+    body_name = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_BODY, body_id)
+    if body_name and body_name.startswith("enemy_"):
+        # bodyのmassを設定する
+        model.body_mass[body_id] *= 1.00
+        # 慣性モーメントも設定する
+        model.body_inertia[body_id] *= 1.00
+        # 重心を上方向にずらす（倒れやすくなる）
+        model.body_ipos[body_id][2] += 0.00  # Z方向（上）に5cm移動
+
+        print(f"[Setup] Halved mass for {body_name}: {model.body_mass[body_id]:.4f} kg")
+
+
 
 
 # ビューアを初期化（描画は別スレッドで自動）
