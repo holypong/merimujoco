@@ -27,6 +27,7 @@
     <material name="enemy_orange" rgba="1 0.667 0 1"/>
     <material name="enemy_dark_gray" rgba="0.184 0.184 0.184 1"/>
     <material name="enemy_gray" rgba="0.188 0.188 0.188 1"/>
+    <material name="enemy_yellow" rgba="1 1 0 1"/>
 
     <mesh name="enemy_c_waist" file="c_waist.stl" />
     <mesh name="enemy_c_chest" file="c_chest.stl" />
@@ -78,16 +79,16 @@
       <body name="enemy_c_chest" pos="0 0 0.02">
         <inertial pos="0 0 0" quat="-0.118801 0.647765 0.0252411 0.752097" mass="0.507983" diaginertia="0.00517547 0.00387936 0.00379816" />
         <joint name="enemy_c_chest" pos="0 0 0" axis="0 0 1" range="-3.14159 3.14159" />
-        <geom class="enemy_visual" material="enemy_dark_gray" mesh="enemy_c_chest" />
+        <geom class="enemy_visual" material="enemy_yellow" mesh="enemy_c_chest" />
         <geom class="enemy_collision" mesh="enemy_c_chest" />
-        <geom class="enemy_visual" material="enemy_white" mesh="enemy_c_chest_dec1" />
-        <geom class="enemy_visual" material="enemy_dark_gray" mesh="enemy_c_chest_dec2" />
+        <geom class="enemy_visual" material="enemy_yellow" mesh="enemy_c_chest_dec1" />
+        <geom class="enemy_visual" material="enemy_yellow" mesh="enemy_c_chest_dec2" />
         <site name="enemy_imu_in_torso" pos="0 0 0.05" size="0.01"/>
         
         <body name="enemy_c_head" pos="0.01145 0 0.0624">
           <inertial pos="0 0 0" quat="0.707107 0 0 0.707107" mass="0.013" diaginertia="2.9e-05 2.2e-05 2.2e-05" />
           <joint name="enemy_c_head" pos="0 0 0" axis="0 0 1" range="-3.14159 3.14159" />
-          <geom class="enemy_visual" material="enemy_white" mesh="enemy_c_head" />
+          <geom class="enemy_visual" material="enemy_yellow" mesh="enemy_c_head" />
           <geom class="enemy_collision" mesh="enemy_c_head" />
         </body>
         
