@@ -4,6 +4,8 @@ import numpy as np
 import threading
 import time
 import math
+import socket
+import struct
 
 # 構造体を宣言する
 from dataclasses import dataclass, field
@@ -14,6 +16,17 @@ FLG_RESET_REQUEST = False       # リセット要求フラグ
 
 MOT_START_FRAME = 200   # 開始フレーム
 MOT_START_TIME = 1.0    # 開始時間
+
+# UDP送信設定
+UDP_IP = "127.0.0.1"    # 送信先IP（必要に応じて変更）
+UDP_PORT = 27000        # 送信ポート
+udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+# データフォーマット定義
+# Header: [robot_id(1byte), num_bodies(1byte)]
+# Body Data: [x, y, z, roll, pitch, yaw] * num_bodies (6 floats per body)
+ROBOT_ID_MAIN = 1
+ROBOT_ID_ENEMY = 2
 
 @dataclass
 class Header:
@@ -300,6 +313,23 @@ for body_id in range(model.nbody):
         model.body_ipos[body_id][2] += 0.00
         print(f"[Setup] Adjusted mass for {body_name}: {model.body_mass[body_id]:.4f} kg")
 
+# --- ボディIDリストの作成 ---
+main_body_ids = []
+enemy_body_ids = []
+
+for body_id in range(model.nbody):
+    body_name = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_BODY, body_id)
+    if body_name:
+        if body_name.startswith("enemy_"):
+            enemy_body_ids.append(body_id)
+        elif body_name != "world":  # world body を除外
+            main_body_ids.append(body_id)
+
+print(f"[Setup] Main robot bodies: {len(main_body_ids)}")
+print(f"[Setup] Enemy robot bodies: {len(enemy_body_ids)}")
+print(f"[Setup] Total UDP packet size per robot: {2 + len(main_body_ids) * 24} bytes (main), {2 + len(enemy_body_ids) * 24} bytes (enemy)")
+
+
 # ビューアを初期化（描画は別スレッドで自動）
 viewer = launch_passive(model, data)
 
@@ -309,6 +339,85 @@ imu_mjc = Imu(
     angular_velocity=Vector3(0.0, 0.0, 0.0),
     linear_acceleration=Vector3(0.0, 0.0, 0.0)
 )
+
+# ========== UDP送信関数 ==========
+
+def get_body_pose(model, data, body_id):
+    """
+    指定されたボディのXYZ座標とRPY姿勢を取得
+    Returns: (x, y, z, roll, pitch, yaw) in degrees
+    """
+    # 位置
+    pos = data.xpos[body_id].copy()
+    
+    # 姿勢行列を取得
+    arr = np.array(data.xmat)
+    if arr.ndim == 2 and arr.shape[1] == 9:
+        mat = arr[body_id].reshape(3, 3)
+    else:
+        flat = arr.flatten()
+        start_idx = body_id * 9
+        end_idx = (body_id + 1) * 9
+        if end_idx <= flat.size:
+            mat = flat[start_idx:end_idx].reshape(3, 3)
+        else:
+            mat = np.eye(3)
+    
+    # RPY変換
+    yaw = math.atan2(float(mat[1, 0]), float(mat[0, 0]))
+    pitch = math.asin(max(-1.0, min(1.0, -float(mat[2, 0]))))
+    roll = math.atan2(float(mat[2, 1]), float(mat[2, 2]))
+    
+    return (pos[0], pos[1], pos[2], 
+            math.degrees(roll), math.degrees(pitch), math.degrees(yaw))
+
+
+def send_robot_all_bodies_udp(model, data, robot_id, body_id_list):
+    """
+    1つのロボットの全ボディ座標をUDPで送信
+    Format: [robot_id(1byte), num_bodies(1byte), body1_data(24bytes), body2_data(24bytes), ...]
+    Each body data: [x, y, z, roll, pitch, yaw] (6 floats = 24 bytes)
+    """
+    try:
+        num_bodies = len(body_id_list)
+        
+        # ヘッダー: robot_id(1byte) + num_bodies(1byte)
+        header = struct.pack('BB', robot_id, num_bodies)
+        
+        # 全ボディのデータを収集
+        body_data = []
+        for body_id in body_id_list:
+            pose = get_body_pose(model, data, body_id)
+            body_data.extend(pose)  # x, y, z, roll, pitch, yaw
+        
+        # ボディデータをパック (floatのリスト)
+        body_bytes = struct.pack(f'{len(body_data)}f', *body_data)
+        
+        # 送信
+        packet = header + body_bytes
+        udp_socket.sendto(packet, (UDP_IP, UDP_PORT))
+        
+    except Exception as e:
+        print(f"[UDP] Robot {robot_id} 送信エラー: {e}")
+
+
+def send_robot_poses_udp(main_pos, main_rpy, enemy_pos, enemy_rpy):
+    """
+    2つのロボットのベース座標をUDPで送信（旧バージョン、互換性のため残す）
+    フォーマット: 12個のfloat値 (48バイト)
+    [main_x, main_y, main_z, main_roll, main_pitch, main_yaw,
+     enemy_x, enemy_y, enemy_z, enemy_roll, enemy_pitch, enemy_yaw]
+    """
+    try:
+        # 12個のfloat値をパック
+        data = struct.pack('12f', 
+                          main_pos[0], main_pos[1], main_pos[2],
+                          main_rpy[0], main_rpy[1], main_rpy[2],
+                          enemy_pos[0], enemy_pos[1], enemy_pos[2],
+                          enemy_rpy[0], enemy_rpy[1], enemy_rpy[2])
+        udp_socket.sendto(data, (UDP_IP, UDP_PORT))
+    except Exception as e:
+        print(f"[UDP] 送信エラー: {e}")
 
 # ========== 歩行制御スレッド ==========
 
@@ -438,8 +547,10 @@ motor_thread.start()
 
 start_time = time.time()
 chest_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "c_chest")
+enemy_chest_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "enemy_c_chest")
 
 print("[Main] Starting walking simulation. Press Ctrl+C to stop.")
+print(f"[Main] Sending robot poses to UDP {UDP_IP}:{UDP_PORT}")
 
 while viewer.is_running():
     total_frames += 1
@@ -516,5 +627,13 @@ while viewer.is_running():
     mdata[13] = round(imu_mjc.orientation.y, 4)          # pitch(deg)
     mdata[14] = round(imu_mjc.orientation.z, 4)          # yaw(deg)
 
+    # ========== UDPで2つのロボットの全ボディ座標を送信 ==========
+    # メインロボットの全ボディを送信
+    send_robot_all_bodies_udp(model, data, ROBOT_ID_MAIN, main_body_ids)
+    
+    # Enemyロボットの全ボディを送信
+    send_robot_all_bodies_udp(model, data, ROBOT_ID_ENEMY, enemy_body_ids)
+
 print("[Main] Simulation ended.")
 stop_background = True
+udp_socket.close()
