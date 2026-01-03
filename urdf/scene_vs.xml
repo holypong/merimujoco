@@ -1,6 +1,6 @@
 <mujoco model="roborecipe_0 scene">
-  <include file="roborecipe4_go2_with_motors3.xml"/>
-  <include file="roborecipe4_go2_with_motors3_enemy.xml"/>
+  <include file="roborecipe4_with_motors3.xml"/>
+  <include file="roborecipe4_with_motors3_enemy.xml"/>
 
   <statistic center="0.15 0 1.1" extent="0.5"/>
 
