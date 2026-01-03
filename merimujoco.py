@@ -8,6 +8,7 @@ import numpy as np
 import os
 import time
 import math
+import json
 
 from redis_transfer import RedisTransfer
 from redis_receiver import RedisReceiver
@@ -17,8 +18,6 @@ from dataclasses import dataclass, field
 from typing import List
 
 MSG_SIZE = 90                   # Meridim配列の長さ
-REDIS_KEY_WRITE = "meridis"     # 読み込むRedisキー (キーA)
-REDIS_KEY_READ  = "meridis2"    # 書き込むRedisキー (キーB)
 CMD_VEL_GAIN = 1.0              # cmd_velのゲイン (0~1)
 FLG_SET_RCVD = True             # Redisからのデータ受信フラグ
 FLG_CREATE_CTRL = False          # 制御信号作成フラグ
@@ -27,6 +26,50 @@ FLG_RESET_REQUEST = False       # リセット要求フラグ
 
 MOT_START_FRAME = 200   # 開始フレーム
 MOT_START_TIME = 1.0  # 開始時間
+
+# Redisサーバー設定（デフォルト値）
+REDIS_HOST = "127.0.0.1"
+REDIS_PORT = 6379
+REDIS_KEY_READ = "meridis2"
+REDIS_KEY_WRITE = "meridis"
+
+def load_redis_config(json_file="mujoco-redis.json"):
+    """Redis設定をJSONファイルから読み込む"""
+    global REDIS_HOST, REDIS_PORT, REDIS_KEY_READ, REDIS_KEY_WRITE
+    
+    try:
+        if not os.path.exists(json_file):
+            print(f"[Warning] Redis config file '{json_file}' not found. Using default values.")
+            return False
+        
+        with open(json_file, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+        
+        # Redis接続設定の読み込み
+        if 'redis' in config:
+            if 'host' in config['redis']:
+                REDIS_HOST = config['redis']['host']
+            if 'port' in config['redis']:
+                REDIS_PORT = config['redis']['port']
+        
+        # Redisキーの設定を読み込み
+        if 'redis_keys' in config:
+            if 'read' in config['redis_keys']:
+                REDIS_KEY_READ = config['redis_keys']['read']
+            if 'write' in config['redis_keys']:
+                REDIS_KEY_WRITE = config['redis_keys']['write']
+        
+        print(f"[Config] Loaded Redis configuration from '{json_file}'")
+        print(f"[Config] Redis Server: {REDIS_HOST}:{REDIS_PORT}")
+        print(f"[Config] Redis Keys: Read='{REDIS_KEY_READ}', Write='{REDIS_KEY_WRITE}'")
+        return True
+        
+    except json.JSONDecodeError as e:
+        print(f"[Error] Failed to parse JSON file '{json_file}': {e}")
+        return False
+    except Exception as e:
+        print(f"[Error] Failed to load Redis config from '{json_file}': {e}")
+        return False
 
 @dataclass
 class Header:
@@ -99,15 +142,16 @@ joint_to_meridis = {
     "r_ankle_roll":     [71,-1]
 }
 
-redis_transfer = RedisTransfer(redis_key=REDIS_KEY_WRITE)
-redis_receiver = RedisReceiver(redis_key=REDIS_KEY_READ)
+# Redis設定の読み込み
+load_redis_config()
+
+redis_transfer = RedisTransfer(host=REDIS_HOST, port=REDIS_PORT, redis_key=REDIS_KEY_WRITE)
+redis_receiver = RedisReceiver(host=REDIS_HOST, port=REDIS_PORT, redis_key=REDIS_KEY_READ)
 
 total_frames = 0    # 全体のフレーム数
 elapsed = 0.0       # 経過時間
 
 # モデルを読み込む
-#model = mujoco.MjModel.from_xml_path('/opt/mujoco/model/humanoid/humanoid.xml')
-#model = mujoco.MjModel.from_xml_path('/home/hori/mujoco/urdf/roborecipe4_go2_with_motors2.xml')
 model = mujoco.MjModel.from_xml_path('/home/hori/mujoco/urdf/scene.xml')
 data = mujoco.MjData(model)
 

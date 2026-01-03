@@ -1,0 +1,10 @@
+{
+  "redis_keys": {
+    "read": "meridis",
+    "write": "meridis2"
+  },
+  "data_flow": {
+    "redis_to_udp": true,
+    "udp_to_redis": false
+  }
+}

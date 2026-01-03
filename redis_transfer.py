@@ -1,19 +1,41 @@
 import redis
 import numpy as np
+import sys
 import time
+import socket
 
 # 20250429 redis_transfer.py 新規作成
+# 20260102 エラー処理強化
+
+REDIS_HOST = 'localhost'
+REDIS_PORT = 6379
+REDIS_KEY = 'meridis'
 
 class RedisTransfer:
-    def __init__(self, host='localhost', port=6379, redis_key='meridis'):
+    def __init__(self, host=REDIS_HOST, port=REDIS_PORT, redis_key=REDIS_KEY,
+                 connect_timeout: float = 0.5, socket_timeout: float = 0.5):
         self.redis_client = None
         self.meridis_size = 90
         self.is_connected = False
         self.redis_key = redis_key  # 使用するRedisキーを設定
+        self.host = host
+        self.port = port
+        self.connect_timeout = connect_timeout
 
         try:
-            self.redis_client = redis.Redis(host=host, port=port, decode_responses=True)
-            self.redis_client.ping()  # 接続テスト
+            # Configure short timeouts so unreachable Redis fails fast
+            self.redis_client = redis.Redis(host=host, port=port, decode_responses=True,
+                                            socket_connect_timeout=connect_timeout,
+                                            socket_timeout=socket_timeout)
+
+            # Quick TCP-level connect to fail fast on unreachable hosts
+            try:
+                conn = socket.create_connection((self.host, self.port), timeout=self.connect_timeout)
+                conn.close()
+            except Exception:
+                raise redis.ConnectionError("TCP connect failed")
+
+            self.redis_client.ping()  # 接続テスト (uses socket timeouts)
             self.is_connected = True
 
             # Initialize redis_key if it doesn't exist
@@ -24,28 +46,6 @@ class RedisTransfer:
             else:
                 print(f"Redis list '{self.redis_key}' already exists.")
 
-            # Joint mapping dictionary
-            self.joint_to_meridis = {
-                # Base link
-                "base_roll":        12,
-                "base_pitch":       13,
-                "base_yaw":         14,
-                # Left leg
-                "l_hip_yaw":        31,
-                "l_hip_roll":       33,
-                "l_thigh_pitch":    35,
-                "l_knee_pitch":     37,
-                "l_ankle_pitch":    39,
-                "l_ankle_roll":     41,
-                # Right leg
-                "r_hip_yaw":        61,
-                "r_hip_roll":       63,
-                "r_thigh_pitch":    65,
-                "r_knee_pitch":     67,
-                "r_ankle_pitch":    69,
-                "r_ankle_roll":     71
-            }
-
         except redis.ConnectionError as e:
             print(f"could not connect to Redis server: {e}")
             print(f"continuing without Redis")
@@ -53,50 +53,6 @@ class RedisTransfer:
             print(f"unexpected error: {e}")
             print(f"continuing without Redis")
             
-    def transfer_joint_data(self, joint_positions, joint_names, base_euler=None, key=None):
-        """Transfer joint position and base orientation data to Redis
-        
-        Args:
-            joint_positions (numpy.ndarray): Array of joint positions
-            joint_names (list): List of joint names corresponding to the positions
-            base_euler (numpy.ndarray, optional): Base link euler angles (roll, pitch, yaw) in degrees
-            key (str, optional): 使用するRedisキー。指定がなければインスタンス変数を使用
-        """
-        if not self.is_connected:
-            return
-
-        # 使用するキーを決定
-        redis_key = key if key is not None else self.redis_key
-
-        # キーが存在するか確認
-        if not self.redis_client.exists(redis_key):
-            # キーが存在しない場合はmeridis_size分の要素を初期化（ハッシュの場合）Hash値は配列の要素番号
-            for i in range(self.meridis_size):
-                self.redis_client.hset(redis_key, i, 0)
-            print(f"Initialized Redis hash '{redis_key}' with {self.meridis_size} elements.")
-
-        try:
-            # Transfer joint positions
-            for joint_name, meridis_index in self.joint_to_meridis.items():
-                if joint_name.startswith('base_') and base_euler is not None:
-                    # Handle base orientation (already in degrees)
-                    if joint_name == "base_roll":
-                        value = round(float(base_euler[0]), 2)
-                    elif joint_name == "base_pitch":
-                        value = round(float(base_euler[1]), 2)
-                    elif joint_name == "base_yaw":
-                        value = round(float(base_euler[2]), 2)
-                    self.redis_client.hset(redis_key, meridis_index, value)
-                elif joint_name in joint_names:
-                    # Handle joint positions (convert from radians to degrees)
-                    joint_idx = joint_names.index(joint_name)
-                    value = round(np.degrees(float(joint_positions[joint_idx])), 2)
-                    self.redis_client.hset(redis_key, meridis_index, value)    
-                    
-        except redis.RedisError as e:
-            print(f"[Redis Error | set_data] Unexpected error: {str(e)}")        
-            self.is_connected = False
-
     def set_data(self, key=None, data=None):
         """Redisにハッシュ構造でデータを保存する
         
@@ -121,12 +77,30 @@ class RedisTransfer:
             #    self.redis_client.hset(redis_key, i, value)
             
             # データをハッシュ構造で保存（1回の操作で全てを設定）
-            hash_data = {str(i): value for i, value in enumerate(data)}
+            # Ensure values are plain numeric strings to avoid storing numpy reprs like 'np.float64(22.92)'
+            hash_data = {str(i): str(float(value)) for i, value in enumerate(data)}
             self.redis_client.hset(redis_key, mapping=hash_data)
 
         except redis.RedisError as e:
             print(f"[Redis Error | set_data] Unexpected error: {str(e)}")        
     
+
+    # Check connection to Redis server (no key check)
+    def check_connection(self):
+        # Quick TCP connect first to fail fast
+        try:
+            conn = socket.create_connection((self.host, self.port), timeout=self.connect_timeout)
+            conn.close()
+        except Exception:
+            return False
+
+        try:
+            return bool(self.redis_client.ping())
+        except redis.exceptions.ConnectionError:
+            return False
+        except Exception as e:
+            print(f"[Redis Error | check_connection] Unexpected error: {e}")
+            return False
 
     def close(self):
         """Close the Redis connection"""
@@ -141,38 +115,41 @@ def main():
     import argparse
     import time
     
-    parser = argparse.ArgumentParser(description='Redisに関節データを転送するテストプログラム')
-    parser.add_argument('--host', default='localhost', help='Redisサーバーのホスト名')
-    parser.add_argument('--port', type=int, default=6379, help='Redisサーバーのポート番号')
-    parser.add_argument('--key', default='meridis', help='使用するRedisキー')
+    parser = argparse.ArgumentParser(description='Test program to transfer joint data to Redis')
+    parser.add_argument('--host', default=REDIS_HOST, help='Redis server hostname')
+    parser.add_argument('--port', type=int, default=REDIS_PORT, help='Redis server port')
+    parser.add_argument('--key', default=REDIS_KEY, help='Redis key to use')
     args = parser.parse_args()
-    
-    # テスト用のダミーデータ（ライブラリとして呼ばれる場合は使わない）
-    joint_positions = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6])
-    joint_names = ["l_hip_yaw", "l_hip_roll", "l_thigh_pitch", "r_hip_roll", "r_hip_yaw", "r_thigh_pitch"]
-    base_euler = np.array([10.0, 20.0, 30.0])
     
     # RedisTransferのインスタンス化
     transfer = RedisTransfer(host=args.host, port=args.port, redis_key=args.key)
+    # Verify Redis server is reachable on startup (no key validation)
+    if not transfer.check_connection():
+        print(f"[Redis Error] Could not connect to Redis at {args.host}:{args.port}")
+        transfer.close()
+        sys.exit(1)
     
     try:
-        print(f"Redisサーバー {args.host}:{args.port} にキー '{args.key}' でデータ転送を開始")
+        print(f"Starting data transfer to Redis server {args.host}:{args.port} with key '{args.key}'")
         
-        # データを3回転送してみる
+            # Transfer data 3 times as a test
+        # Prepare base dummy data: 90 elements, values 0.1, 0.2, 0.3, ... (start at 0.1)
+        base_data = [round((i + 1) / 10.0, 1) for i in range(transfer.meridis_size)]
+
         for i in range(3):
-            # 値を少し変更
-            joint_positions = joint_positions + 0.1
-            base_euler = base_euler + 5.0
-            
-            # 転送実行
-            transfer.transfer_joint_data(joint_positions, joint_names, base_euler)
-            print(f"転送 {i+1}: 完了")
+            # shift values slightly each iteration
+            #full_data = [round(val + 0.1 * i, 1) for val in base_data]
+            full_data = base_data  # Reset to base data for consistent testing
+
+            # Use set_data() convenience method to write the hash
+            transfer.set_data(key=args.key, data=full_data)
+            print(f"Wrote 90-element hash to '{args.key}' (iteration {i+1})")
             time.sleep(1)
                     
-        print("完了しました。")
+        print("Completed.")
         
     except KeyboardInterrupt:
-        print("\nユーザーによって停止されました")
+        print("\nStopped by user (KeyboardInterrupt)")
     finally:
         transfer.close()
 

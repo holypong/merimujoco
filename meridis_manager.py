@@ -14,6 +14,8 @@ import threading
 import time
 import atexit   # クリーンアップ用
 import signal   # シグナルハンドリング用
+import json     # ネットワーク設定読み込み用
+import os       # ファイル存在確認用
 import redis
 import redis_receiver
 import redis_transfer
@@ -23,7 +25,7 @@ import redis_transfer
 # 20250517 最新のUDPパケットのみを処理するよう最適化
 
 # 定数
-UDP_RESV_PORT = 22222       # 受信ポート
+UDP_RECV_PORT = 22222       # 受信ポート
 UDP_SEND_PORT = 22224       # 送信ポート
 MSG_SIZE = 90               # Meridim配列の長さ
 MSG_BUFF = MSG_SIZE * 2     # Meridim配列のバイト長さ
@@ -31,12 +33,12 @@ MSG_ERRS = MSG_SIZE - 2     # Meridim配列のエラーフラグの格納場所
 MSG_CKSM = MSG_SIZE - 1     # Meridim配列のチェックサムの格納場所
 
 # Redisサーバー設定
-#REDIS_HOST = "localhost"
-#REDIS_HOST = "172.21.242.172"
-REDIS_HOST = "172.22.95.231"
-
+REDIS_HOST = "127.0.0.1"
 REDIS_PORT = 6379
-# Redisキーはコマンドライン引数で設定されるため、デフォルト値もセット済
+
+# マイコンボードのIPアドレス
+UDP_SEND_IP = "192.168.0.21"       # 送信先のESP32のIPアドレス（必要に応じて変更）
+UDP_RECV_IP = "192.168.0.23"       # 受信元のESP32のIPアドレス（必要に応じて変更）
 
 # データフロー制御フラグ（デフォルト値: sim2real モード）
 REDIS_KEY_READ = "meridis"
@@ -46,18 +48,17 @@ FLG_REDISREAD_UDPSND = True         # Redisからデータを読み込んでUDP�
 FLG_UDPRCV_REDISWRITE = False       # UDP受信データをRedisに書き込むフラグ
 
 
-# マイコンボードのIPアドレス
-UDP_SEND_IP = "192.168.11.21"     # 送信先のESP32のIPアドレス（必要に応じて変更）
-
 TRQ_ON = 1                        # サーボパワー 0:OFF, 1:ON
 
 # MeridianConsoleクラス
 class MeridianConsole:
-    def __init__(self, redis_host=REDIS_HOST, target_ip=UDP_SEND_IP, foot_scaling=False):
+    def __init__(self, redis_host=REDIS_HOST, target_ip=UDP_SEND_IP, recv_ip=UDP_RECV_IP, foot_scaling=False):
         # Redis設定
         self.redis_host = redis_host
         # UDP送信先設定
         self.target_ip = target_ip
+        # UDP受信側設定
+        self.recv_ip = recv_ip
         # Foot scaling設定
         self.foot_scaling = foot_scaling
         
@@ -369,6 +370,7 @@ def receive_latest_udp_packet(sock):
     """UDPバッファから最新のパケットのみを取得する"""
     latest_data = None
     packet_count = 0
+    latest_addr = None
     
     try:
         # バッファ内の全パケットを読み取り、最新のものだけを保持
@@ -377,6 +379,7 @@ def receive_latest_udp_packet(sock):
                 data, addr = sock.recvfrom(MSG_BUFF)
                 packet_count += 1
                 latest_data = data  # 最新データだけを保持
+                latest_addr = addr  # 送信元アドレスを保持
             except BlockingIOError:
                 # バッファが空になったらループ終了
                 break
@@ -388,6 +391,8 @@ def receive_latest_udp_packet(sock):
         mrd.received_packets_total += packet_count
         if latest_data is not None:
             mrd.processed_packets_total += 1
+            # UDP受信デバッグプリント
+            #print(f"[UDP Recv] Received packet from {latest_addr[0]}:{latest_addr[1]} (Total packets in buffer: {packet_count})")
         mrd.skipped_packets_total = mrd.received_packets_total - mrd.processed_packets_total
         mrd.packets_in_queue = packet_count
         
@@ -408,11 +413,11 @@ def meridian_loop():
     # ノンブロッキングモードに設定（最適化）
     sock.setblocking(False)
 
-    sock.bind((mrd.get_local_ip(), UDP_RESV_PORT))
+    sock.bind((mrd.recv_ip, UDP_RECV_PORT))
     
     atexit.register(cleanup)  # クリーンアップ関数の登録
     
-    print(f"Meridis Manager started. Listening on port {UDP_RESV_PORT}")
+    print(f"Meridis Manager started. Listening on {mrd.recv_ip}:{UDP_RECV_PORT}")
     print(f"Sending to {mrd.target_ip}:{UDP_SEND_PORT}")
     print(f"Redis keys: Read from {mrd.redis_key_read}, Write to {mrd.redis_key_write}")
     print(f"Target frame rate: {mrd.target_fps} Hz (frame time: {mrd.target_frame_time*1000:.2f} ms)")
@@ -529,19 +534,100 @@ def cleanup():
         pass
     print("Meridis Manager resources released.")
 
+def load_manager_config(json_file):
+    """マネージャー設定（Redisキーとデータフロー）をJSONファイルから読み込む"""
+    global REDIS_KEY_READ, REDIS_KEY_WRITE, FLG_REDISREAD_UDPSND, FLG_UDPRCV_REDISWRITE
+    
+    try:
+        if not os.path.exists(json_file):
+            print(f"[Warning] Manager config file '{json_file}' not found. Using default values.")
+            return False
+        
+        with open(json_file, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+        
+        # Redisキーの設定を読み込み
+        if 'redis_keys' in config:
+            if 'read' in config['redis_keys']:
+                REDIS_KEY_READ = config['redis_keys']['read']
+            if 'write' in config['redis_keys']:
+                REDIS_KEY_WRITE = config['redis_keys']['write']
+        
+        # データフローフラグの設定を読み込み
+        if 'data_flow' in config:
+            if 'redis_to_udp' in config['data_flow']:
+                FLG_REDISREAD_UDPSND = config['data_flow']['redis_to_udp']
+            if 'udp_to_redis' in config['data_flow']:
+                FLG_UDPRCV_REDISWRITE = config['data_flow']['udp_to_redis']
+        
+        print(f"[Config] Loaded manager configuration from '{json_file}'")
+        print(f"[Config] Redis Keys: Read='{REDIS_KEY_READ}', Write='{REDIS_KEY_WRITE}'")
+        print(f"[Config] Data Flow: Redis→UDP={FLG_REDISREAD_UDPSND}, UDP→Redis={FLG_UDPRCV_REDISWRITE}")
+        return True
+        
+    except json.JSONDecodeError as e:
+        print(f"[Error] Failed to parse JSON file '{json_file}': {e}")
+        return False
+    except Exception as e:
+        print(f"[Error] Failed to load manager config from '{json_file}': {e}")
+        return False
+
+def load_network_config(json_file):
+    """ネットワーク設定をJSONファイルから読み込む"""
+    global REDIS_HOST, REDIS_PORT, UDP_SEND_IP, UDP_SEND_PORT, UDP_RECV_IP, UDP_RECV_PORT
+    
+    try:
+        if not os.path.exists(json_file):
+            print(f"[Warning] Network config file '{json_file}' not found. Using default values.")
+            return False
+        
+        with open(json_file, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+        
+        # Redisの設定を読み込み
+        if 'redis' in config:
+            if 'host' in config['redis']:
+                REDIS_HOST = config['redis']['host']
+            if 'port' in config['redis']:
+                REDIS_PORT = config['redis']['port']
+        
+        # UDPの設定を読み込み
+        if 'udp' in config:
+            if 'send' in config['udp']:
+                if 'ip' in config['udp']['send']:
+                    UDP_SEND_IP = config['udp']['send']['ip']
+                if 'port' in config['udp']['send']:
+                    UDP_SEND_PORT = config['udp']['send']['port']
+            if 'recv' in config['udp']:
+                if 'ip' in config['udp']['recv']:
+                    UDP_RECV_IP = config['udp']['recv']['ip']
+                if 'port' in config['udp']['recv']:
+                    UDP_RECV_PORT = config['udp']['recv']['port']
+        
+        print(f"[Config] Loaded network configuration from '{json_file}'")
+        print(f"[Config] Redis: {REDIS_HOST}:{REDIS_PORT}")
+        print(f"[Config] UDP Send: {UDP_SEND_IP}:{UDP_SEND_PORT}")
+        print(f"[Config] UDP Recv: {UDP_RECV_IP}:{UDP_RECV_PORT}")
+        return True
+        
+    except json.JSONDecodeError as e:
+        print(f"[Error] Failed to parse JSON file '{json_file}': {e}")
+        return False
+    except Exception as e:
+        print(f"[Error] Failed to load network config from '{json_file}': {e}")
+        return False
+
 def parse_arguments():
     """コマンドライン引数を解析する"""
     parser = argparse.ArgumentParser(description='Meridis Manager')
-    parser.add_argument('--mode', 
-                        choices=['sim2real', 'real2sim', 'mcp2real'], 
-                        default='sim2real',
-                        help='communication mode: sim2real, real2sim, or mcp2real (default: sim2real)')
-    parser.add_argument('--redis-ip',
-                        default=REDIS_HOST,
-                        help=f'Redis server IP: IP address (default: {REDIS_HOST})')
-    parser.add_argument('--target-ip',
-                        default=UDP_SEND_IP,
-                        help=f'Target ESP32 IP address for UDP sending (default: {UDP_SEND_IP})')
+    parser.add_argument('--mgr',
+                        default='mgr_sim2real.json',
+                        help='Manager configuration JSON file (default: mgr_sim2real.json), ' \
+                        'mgr_real2sim.json, ' \
+                        'mgr_real.json')
+    parser.add_argument('--network',
+                        default='network.json',
+                        help='Network configuration JSON file (default: network.json)')
     parser.add_argument('--foot',
                         choices=['off', 'on'],
                         default='off',
@@ -589,27 +675,9 @@ def main():
         cleanup()
         sys.exit(0)
 
-def configure_mode_flags(mode):
-    """モードに応じてフラグを設定する"""
-    global FLG_REDISREAD_UDPSND, FLG_UDPRCV_REDISWRITE
-    
-    if mode == 'sim2real':
-        FLG_REDISREAD_UDPSND = True   # Redis→UDP送信を有効
-        FLG_UDPRCV_REDISWRITE = False  # UDP受信→Redis書き込みを無効
-        print(f"[Mode] sim2real - Reading from '{REDIS_KEY_READ}', Writing to '{REDIS_KEY_WRITE}'")
-    elif mode == 'real2sim':
-        FLG_REDISREAD_UDPSND = False  # Redis→UDP送信を無効
-        FLG_UDPRCV_REDISWRITE = True   # UDP受信→Redis書き込みを有効
-        print(f"[Mode] real2sim - Reading from '{REDIS_KEY_READ}', Writing to '{REDIS_KEY_WRITE}'")
-    elif mode == 'mcp2real':
-        FLG_REDISREAD_UDPSND = True   # Redis→UDP送信を有効
-        FLG_UDPRCV_REDISWRITE = True   # UDP受信→Redis書き込みを有効
-        print(f"[Mode] mcp2real - Reading from '{REDIS_KEY_READ}', Writing to '{REDIS_KEY_WRITE}'")
-
-    print(f"[Flow] Read Redis({REDIS_KEY_READ}) to send UDP : {FLG_REDISREAD_UDPSND}")
-    print(f"[Flow] Receive UDP to write Redis({REDIS_KEY_WRITE}): {FLG_UDPRCV_REDISWRITE}")
-
-    time.sleep(1.0) # フラグ設定後に少し待機
+# NOTE: `configure_mode_flags()` removed. Mode flags are controlled by
+# the manager JSON (`data_flow`) loaded by `load_manager_config()` or
+# set to defaults when that file is not available.
     
 if __name__ == '__main__':
     udp_thread = None
@@ -617,12 +685,18 @@ if __name__ == '__main__':
         # コマンドライン引数を先に解析
         args = parse_arguments()
         
-        # モードに応じてRedisキーとデータフローフラグを設定
-        configure_mode_flags(args.mode)
+        # ネットワーク設定ファイルを読み込み
+        load_network_config(args.network)
         
-        # MeridianConsoleインスタンスをグローバルに初期化（RedisのIPアドレス、ターゲットIP、foot scalingを指定）
+        # マネージャー設定の読み込み
+        if not load_manager_config(args.mgr):
+            # JSONファイルが読めない場合は致命的とみなし終了する
+            print(f"[Error] Failed to load manager configuration '{args.mgr}'. Exiting.")
+            sys.exit(1)
+        
+        # MeridianConsoleインスタンスをグローバルに初期化（RedisのIPアドレス、送信IP、受信IP、foot scalingを指定）
         foot_scaling_enabled = args.foot == 'on'
-        mrd = MeridianConsole(redis_host=args.redis_ip, target_ip=args.target_ip, foot_scaling=foot_scaling_enabled)
+        mrd = MeridianConsole(redis_host=REDIS_HOST, target_ip=UDP_SEND_IP, recv_ip=UDP_RECV_IP, foot_scaling=foot_scaling_enabled)
         
         print(f"[Foot scaling] {args.foot} - Special ranges 1/100 scaling: {foot_scaling_enabled}")
         
