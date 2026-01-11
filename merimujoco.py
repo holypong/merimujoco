@@ -1,5 +1,6 @@
 import mujoco
 import mujoco.viewer
+import glfw
 import numpy as np
 import threading
 import time
@@ -29,6 +30,8 @@ FLG_SET_RCVD = True             # Redisからのデータ受信フラグ
 FLG_CREATE_CTRL = False          # 制御信号作成フラグ
 FLG_SET_SNDD = True             # Redisへのデータ送信フラグ
 FLG_RESET_REQUEST = False       # リセット要求フラグ
+
+viewer = None  # MuJoCo viewer object
 
 MOT_START_FRAME = 200   # 開始フレーム
 MOT_START_TIME = 1.0  # 開始時間
@@ -405,7 +408,11 @@ mot_ctrl_thread.start()
 # シグナルハンドラを設定
 def signal_handler(sig, frame):
     print(f"\n[Info] Signal {sig} received. Exiting...")
-    sys.exit(0)
+    try:
+        glfw.terminate()
+    except:
+        pass
+    os._exit(0)
 
 # SIGINT (Ctrl+C) とSIGTSTP (Ctrl+Z) のシグナルハンドラを設定
 signal.signal(signal.SIGINT, signal_handler)
@@ -419,5 +426,11 @@ print("[Info] Simulation started. Press Esc, Ctrl+C, or Ctrl+Z to stop.")
 # MuJoCoビューアーを起動（ブロッキング実行）
 print("[Info] Launching MuJoCo viewer...")
 mujoco.viewer.launch(model, data)
+
+# ビューアー終了後にGLFWをクリーンアップ
+try:
+    glfw.terminate()
+except:
+    pass
 
 
