@@ -1,14 +1,18 @@
 import mujoco
-from mujoco.viewer import launch_passive
+import mujoco.viewer
 import numpy as np
 import threading
 import time
+import platform
+import os
 
 import numpy as np
-import os
 import time
 import math
 import json
+
+# macOSでMuJoCoビューアーを動作させるための環境変数設定
+os.environ['MUJOCO_GL'] = 'glfw'
 
 from redis_transfer import RedisTransfer
 from redis_receiver import RedisReceiver
@@ -150,26 +154,34 @@ redis_receiver = RedisReceiver(host=REDIS_HOST, port=REDIS_PORT, redis_key=REDIS
 
 total_frames = 0    # 全体のフレーム数
 elapsed = 0.0       # 経過時間
+start_time = 0.0    # 開始時間
+line_vel_x = 0.0    # 前進速度
+line_vel_y = 0.0    # 左右速度
+ang_vel_z = 0.0     # 旋回速度
+
+# スレッドセーフのためのロック
+imu_lock = threading.Lock()
 
 # モデルを読み込む
-#model = mujoco.MjModel.from_xml_path('/home/hori/mujoco/urdf/scene.xml')
-model = mujoco.MjModel.from_xml_path('/home/hori/mujoco/mjcf/scene.xml')
+#model = mujoco.MjModel.from_xml_path('urdf/scene.xml')
+model = mujoco.MjModel.from_xml_path('mjcf/scene.xml')
 data = mujoco.MjData(model)
 
 
 # --- 起動時に強制的に物理パラメータを上書き ---
-model.opt.gravity[:] = [0, 0, -9.8]           # 重力を半分に
+model.opt.gravity[:] = [0, 0, -9.8]           # 重力
 model.opt.timestep = 0.001                    # タイムステップ調整
 model.opt.integrator = mujoco.mjtIntegrator.mjINT_RK4  # 安定な積分器に変更
 # 全関節の減衰（damping）を強制上書き
 model.dof_damping[:] = 5.0                    # ブレ防止
 # 全geomの摩擦係数を上書き（静止摩擦、動摩擦、粘着摩擦）
-model.geom_friction[:, :] = [1.2, 0.8, 0.01]  # 着地安定化用の摩擦調整
+#model.geom_friction[:, :] = [1.2, 0.8, 0.01]  # 着地安定化用の摩擦調整
 
 
 
-# ビューアを初期化（描画は別スレッドで自動）
-viewer = launch_passive(model, data)
+# ビューアを初期化
+print(f"[Info] Detected OS: {platform.system()}")
+print(f"[Info] MUJOCO_GL environment variable: {os.environ.get('MUJOCO_GL', 'not set')}")
 
 mdata = [0.0] * 90  # 初期化
 imu_mjc = Imu(
@@ -181,8 +193,24 @@ imu_mjc = Imu(
 )
 
 def motor_controller_thread():
-    global imu_mjc, FLG_RESET_REQUEST
+    global imu_mjc, FLG_RESET_REQUEST, elapsed, total_frames, start_time, line_vel_x, line_vel_y, ang_vel_z
+
+    # chest_body_idを取得
+    chest_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "c_chest")
+
     while True:
+        # 時間を更新
+        total_frames += 1
+        elapsed = time.time() - start_time
+
+        # リセット要求がある場合はリセットを実行
+        if FLG_RESET_REQUEST:
+            print(f"[motor_controller_thread] executing mujoco reset")
+            mujoco.mj_resetData(model, data)
+            mujoco.mj_forward(model, data)
+            FLG_RESET_REQUEST = False
+            print(f"[motor_controller_thread] reset completed")
+
         if FLG_SET_RCVD and elapsed >= MOT_START_TIME:  # データ受信フラグが立っていて、開始時間を超えたら
             # meridis2キーからデータを読み込む
             #start_time = time.perf_counter()
@@ -289,6 +317,64 @@ def motor_controller_thread():
             # Redis にデータを送信
             if FLG_SET_SNDD and elapsed >= MOT_START_TIME:  # データ送信フラグが立っていて、開始時間を超えたら
 
+                # --- c_chestのIMU計算 (Redis送信直前) ---
+                # 姿勢
+                xmat = data.xmat
+                arr = np.array(xmat)
+                if arr.ndim == 2 and arr.shape[1] == 9:
+                    chest_mat = arr[chest_body_id].reshape(3, 3)
+                else:
+                    flat = arr.flatten()
+                    start_idx = chest_body_id * 9
+                    end_idx = (chest_body_id + 1) * 9
+                    if end_idx <= flat.size:
+                        chest_mat = flat[start_idx:end_idx].reshape(3, 3)
+                    else:
+                        chest_mat = np.eye(3)
+                yaw = math.atan2(float(chest_mat[1, 0]), float(chest_mat[0, 0]))
+                pitch = math.asin(max(-1.0, min(1.0, -float(chest_mat[2, 0]))))
+                roll = math.atan2(float(chest_mat[2, 1]), float(chest_mat[2, 2]))
+                yaw_deg = math.degrees(yaw)
+                pitch_deg = math.degrees(pitch)
+                roll_deg = math.degrees(roll)
+                # 角速度（data.cvel: shape=(nbody, 6)）
+                ang_vel = Vector3(0.0, 0.0, 0.0)
+                try:
+                    cvel = np.array(data.cvel)
+                    if cvel.ndim == 2 and cvel.shape[1] >= 6:
+                        wx, wy, wz = cvel[chest_body_id, 3:6]
+                    else:
+                        flat = cvel.flatten()
+                        start_idx = chest_body_id * 6
+                        end_idx = (chest_body_id + 1) * 6
+                        if end_idx <= flat.size:
+                            seg = flat[start_idx:end_idx]
+                            wx, wy, wz = seg[3:6]
+                        else:
+                            wx, wy, wz = 0.0, 0.0, 0.0
+                    ang_vel = Vector3(math.degrees(float(wx)), math.degrees(float(wy)), math.degrees(float(wz)))
+                except Exception as e:
+                    print(f"[motor_controller_thread] 角速度取得エラー: {e}")
+                    ang_vel = Vector3(0.0, 0.0, 0.0)
+                # 加速度（重力ベクトルをc_chest座標系へ変換）
+                try:
+                    g = np.array(model.opt.gravity)  # shape=(3,)
+                    # chest_mat: ワールド→c_chest の回転行列
+                    # gはワールド座標系なので、c_chest座標系へは R^T @ g
+                    lin_acc_arr = chest_mat.T @ g
+                    lin_acc = Vector3(float(lin_acc_arr[0]), float(lin_acc_arr[1]), float(lin_acc_arr[2]))
+                except Exception as e:
+                    print(f"[motor_controller_thread] 重力変換エラー: {e}")
+                    lin_acc = Vector3(0.0, 0.0, 0.0)
+                
+                with imu_lock:
+                    imu_mjc = Imu(
+                        header=Header(stamp=time.time(), frame_id="c_chest"),
+                        orientation=Vector3(roll_deg, pitch_deg, yaw_deg),
+                        angular_velocity=ang_vel,
+                        linear_acceleration=lin_acc
+                    )
+
                 # mujocoのIMUデータを小数点2桁で表示
                 print(f"[Debug] mjc: {imu_mjc.orientation.x:.2f}, {imu_mjc.orientation.y:.2f}, {imu_mjc.orientation.z:.2f}")
 
@@ -308,7 +394,7 @@ def motor_controller_thread():
                 #print(f"transfer elapsed time: {elapsed_time*1000000:.2f} microseconds ({elapsed_time:.6f} seconds)")
 
 
-        time.sleep(0.02)  # 10ms待機
+        time.sleep(0.01)  # 10ms待機
 
 # スレッドを開始
 mot_ctrl_thread = threading.Thread(target=motor_controller_thread, daemon=True)
@@ -319,83 +405,11 @@ mot_ctrl_thread.start()
 
 # メインループで制御＋mj_step
 start_time = time.time()
-chest_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "c_chest")
-while viewer.is_running():
-    total_frames += 1
-    elapsed = time.time() - start_time
 
-    # リセット要求がある場合はリセットを実行
-    if FLG_RESET_REQUEST:
-        print(f"[mainloop] executing mujoco reset")
-        mujoco.mj_resetData(model, data)
-        mujoco.mj_forward(model, data)
-        viewer.sync()
-        FLG_RESET_REQUEST = False
-        print(f"[mainloop] reset completed")
-        continue
+print("[Info] Simulation started. Press Esc or close window to stop.")
 
-    mujoco.mj_step(model, data)  # ステップ更新
-    viewer.sync()                # 描画更新
-
-    # --- c_chestのIMU計算（mj_step直後）---
-    # 姿勢
-    xmat = data.xmat
-    arr = np.array(xmat)
-    if arr.ndim == 2 and arr.shape[1] == 9:
-        chest_mat = arr[chest_body_id].reshape(3, 3)
-    else:
-        flat = arr.flatten()
-        start_idx = chest_body_id * 9
-        end_idx = (chest_body_id + 1) * 9
-        if end_idx <= flat.size:
-            chest_mat = flat[start_idx:end_idx].reshape(3, 3)
-        else:
-            chest_mat = np.eye(3)
-    yaw = math.atan2(float(chest_mat[1, 0]), float(chest_mat[0, 0]))
-    pitch = math.asin(max(-1.0, min(1.0, -float(chest_mat[2, 0]))))
-    roll = math.atan2(float(chest_mat[2, 1]), float(chest_mat[2, 2]))
-    yaw_deg = math.degrees(yaw)
-    pitch_deg = math.degrees(pitch)
-    roll_deg = math.degrees(roll)
-    # 角速度（data.cvel: shape=(nbody, 6)）
-    ang_vel = Vector3(0.0, 0.0, 0.0)
-    try:
-        cvel = np.array(data.cvel)
-        if cvel.ndim == 2 and cvel.shape[1] >= 6:
-            wx, wy, wz = cvel[chest_body_id, 3:6]
-        else:
-            flat = cvel.flatten()
-            start_idx = chest_body_id * 6
-            end_idx = (chest_body_id + 1) * 6
-            if end_idx <= flat.size:
-                seg = flat[start_idx:end_idx]
-                wx, wy, wz = seg[3:6]
-            else:
-                wx, wy, wz = 0.0, 0.0, 0.0
-        ang_vel = Vector3(math.degrees(float(wx)), math.degrees(float(wy)), math.degrees(float(wz)))
-    except Exception as e:
-        print(f"[mainloop] 角速度取得エラー: {e}")
-        ang_vel = Vector3(0.0, 0.0, 0.0)
-    # 加速度（重力ベクトルをc_chest座標系へ変換）
-    try:
-        g = np.array(model.opt.gravity)  # shape=(3,)
-        # chest_mat: ワールド→c_chest の回転行列
-        # gはワールド座標系なので、c_chest座標系へは R^T @ g
-        lin_acc_arr = chest_mat.T @ g
-        lin_acc = Vector3(float(lin_acc_arr[0]), float(lin_acc_arr[1]), float(lin_acc_arr[2]))
-    except Exception as e:
-        print(f"[mainloop] 重力変換エラー: {e}")
-        lin_acc = Vector3(0.0, 0.0, 0.0)
-    imu_mjc = Imu(
-        header=Header(stamp=time.time(), frame_id="c_chest"),
-        orientation=Vector3(roll_deg, pitch_deg, yaw_deg),
-        angular_velocity=ang_vel,
-        linear_acceleration=lin_acc
-    )
-    # デバッグ表示
-    #print(f"IMU Debug Info - Time: {time.time()}")
-    #print(f"  Orientation (deg): {imu_mjc.orientation}")
-    #print(f"  Angular Velocity (deg/s): {imu_mjc.angular_velocity}")
-    #print(f"  Linear Acceleration (m/s^2): {imu_mjc.linear_acceleration}")
+# MuJoCoビューアーを起動（ブロッキング実行）
+print("[Info] Launching MuJoCo viewer...")
+mujoco.viewer.launch(model, data)
 
 
