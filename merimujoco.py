@@ -5,6 +5,8 @@ import threading
 import time
 import platform
 import os
+import signal
+import sys
 
 import numpy as np
 import time
@@ -400,13 +402,19 @@ def motor_controller_thread():
 mot_ctrl_thread = threading.Thread(target=motor_controller_thread, daemon=True)
 mot_ctrl_thread.start()
 
+# シグナルハンドラを設定
+def signal_handler(sig, frame):
+    print(f"\n[Info] Signal {sig} received. Exiting...")
+    sys.exit(0)
 
-
+# SIGINT (Ctrl+C) とSIGTSTP (Ctrl+Z) のシグナルハンドラを設定
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTSTP, signal_handler)
 
 # メインループで制御＋mj_step
 start_time = time.time()
 
-print("[Info] Simulation started. Press Esc or close window to stop.")
+print("[Info] Simulation started. Press Esc, Ctrl+C, or Ctrl+Z to stop.")
 
 # MuJoCoビューアーを起動（ブロッキング実行）
 print("[Info] Launching MuJoCo viewer...")
