@@ -32,6 +32,7 @@ FLG_CREATE_CTRL = False          # 制御信号作成フラグ
 FLG_SET_SNDD = True             # Redisへのデータ送信フラグ
 FLG_RESET_REQUEST = False       # リセット要求フラグ
 FLG_SET_JVALUE = True            # 受信した値を軸にセットするフラグ
+FLG_GET_JVALUE = False           # MuJoCoの関節角度をmdata[]に格納するフラグ
 
 viewer = None  # MuJoCo viewer object
 
@@ -164,10 +165,17 @@ parser.add_argument('--setjvalue',
                     choices=['true', 'false'],
                     default='true',
                     help='Set received values to joint axes (default: true)')
+parser.add_argument('--getjvalue',
+                    type=str,
+                    choices=['true', 'false'],
+                    default='false',
+                    help='Get MuJoCo joint angles and store to mdata[] (default: false)')
 args = parser.parse_args()
 
 # setjvalueフラグを設定
 FLG_SET_JVALUE = (args.setjvalue.lower() == 'true')
+# getjvalueフラグを設定
+FLG_GET_JVALUE = (args.getjvalue.lower() == 'true')
 
 # Redis設定の読み込み
 load_redis_config(args.redis_config)
@@ -412,6 +420,17 @@ def motor_controller_thread():
                 mdata[12] = round(imu_mjc.orientation.x, 4)   # roll(deg)
                 mdata[13] = round(imu_mjc.orientation.y, 4)   # pitch(deg)
                 mdata[14] = round(imu_mjc.orientation.z, 4)   # yaw(deg)
+                
+                # FLG_GET_JVALUEがTrueの場合、MuJoCoの関節角度をmdata[]に格納
+                if FLG_GET_JVALUE:
+                    for joint_name, meridis_index in joint_to_meridis.items():
+                        if joint_name in joint_names:
+                            joint_idx = joint_names.index(joint_name)
+                            meridis_idx = joint_to_meridis[joint_name][0]
+                            meridis_mul = joint_to_meridis[joint_name][1]
+                            # data.qpos[joint_idx]はラジアン、度数に変換して格納
+                            joint_angle_deg = math.degrees(data.qpos[joint_idx]) * meridis_mul
+                            mdata[meridis_idx] = round(joint_angle_deg, 4)
                 
                 #start_time = time.perf_counter()
                 redis_transfer.set_data(REDIS_KEY_WRITE, mdata)

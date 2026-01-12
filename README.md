@@ -36,16 +36,54 @@ pip install mujoco numpy redis
 ### 2. シミュレーションの起動
 
 ```bash
+# デフォルト設定で起動（redis.json使用）
 python merimujoco.py
+
+# 別のRedis設定ファイルを指定して起動
+python merimujoco.py --redis-config redis-console.json
+python merimujoco.py --redis-config redis-mcp.json
+python merimujoco.py --redis-config redis-mgr.json
 ```
 
 - MuJoCoビューワーが起動し、3Dロボットシミュレーションが開始されます
-- 設定ファイル `mujoco-redis.json` からRedis設定を自動読み込みします
-- 終了するには、ビューワーウィンドウのEscキー、またはターミナルでCtrl+C / Ctrl+Zを押してください
+- 設定ファイルからRedis設定を自動読み込みします
 
-### 3. 設定ファイル（mujoco-redis.json）
+#### ⚠️ 重要：終了方法
+
+**必ずMuJoCoビューワーウィンドウの右上の「×」ボタン（QUIT）で終了してください。**
+
+- ❌ **非推奨**: ターミナルでのCtrl+C / Ctrl+Z（強制終了）
+- ✅ **推奨**: ビューワーウィンドウの×ボタンまたはEscキー
+
+強制終了するとリソースが適切に解放されず、次回起動時に問題が発生する可能性があります。
+
+#### コマンドラインオプション
+
+- `--redis-config <ファイル名>`: Redis設定JSONファイルを指定（デフォルト: `redis.json`）
+- `--setjvalue <true|false>`: Redisから受信した値を関節軸にセットする（デフォルト: `true`）**[試験中]**
+- `--getjvalue <true|false>`: MuJoCoの関節角度をmdata[]に格納してRedisに送信（デフォルト: `false`）**[試験中]**
+
+**注意**: `--setjvalue`と`--getjvalue`オプションは現在試験中の機能です。本番環境での使用前に十分なテストを行ってください。
+
+```bash
+# 例: 受信値を関節にセットせず、シミュレータの関節角度を送信
+python merimujoco.py --redis-config redis-console.json --setjvalue false --getjvalue true
+```
+
+### 3. Redis設定ファイル
 
 Redis接続設定をJSONファイルで管理します。ファイルが存在しない場合はデフォルト値（127.0.0.1:6379）を使用します。
+
+#### 設定ファイルの種類
+
+プロジェクトには複数のRedis設定ファイルが用意されており、異なる制御システムとの連携に対応しています：
+
+- **redis.json**: デフォルト設定（マネージャーシステム用）
+- **redis-console.json**: コンソール制御システム用
+- **redis-mcp.json**: MCPサーバー用
+- **redis-mgr.json**: マネージャーシステム用
+
+#### 設定ファイルの形式
 
 ```json
 {
@@ -54,16 +92,18 @@ Redis接続設定をJSONファイルで管理します。ファイルが存在�
     "port": 6379
   },
   "redis_keys": {
-    "read": "meridis2",
-    "write": "meridis"
+    "read": "meridis_console_pub",
+    "write": "meridis_sim_pub"
   }
 }
 ```
 
-## Redisキー `meridis` と `meridis2` の関係
+各ファイルは異なる`read`キー（受信用）を使用し、同じ`write`キー（送信用）を共有することで、複数の制御システムからシミュレータを制御できます。
 
-- `meridis2` … 制御システムからシミュレーションに送信される指令データ（関節角度等）を格納するキー（読み取り専用）
-- `meridis` … シミュレーションから制御システムに送信される状態データ（IMU、関節状態等）を格納するキー（書き込み専用）
+## Redisキーの役割
+
+- **read キー** (`meridis_*_pub`) … 制御システムからシミュレーションに送信される指令データ（関節角度等）を格納するキー（読み取り専用）
+- **write キー** (`meridis_sim_pub`) … シミュレーションから制御システムに送信される状態データ（IMU、関節状態等）を格納するキー（書き込み専用）
 
 この2つのキーを通じて、制御システムとシミュレーション間でリアルタイムデータ交換を行います。
 
@@ -71,23 +111,27 @@ Redis接続設定をJSONファイルで管理します。ファイルが存在�
 
 ```mermaid
 flowchart LR
-  Controller[制御システム/mcp-meridis.py]
+  Controller[制御システム]
   Simulation[merimujoco.py]
   subgraph Redisサーバー
-    Meridis2["meridis2（指令データ）"]
-    Meridis["meridis（状態データ）"]
+    ReadKey["read キー（指令データ）<br/>meridis_console_pub / meridis_mcp_pub / meridis_mgr_pub"]
+    WriteKey["write キー（状態データ）<br/>meridis_sim_pub"]
   end
-  Controller -- 書き込み/送信 --> Meridis2
-  Meridis2 -- 読み出し/取得 --> Simulation
-  Simulation -- 書き込み/送信 --> Meridis
-  Meridis -- 読み出し/取得 --> Controller
+  Controller -- 書き込み/送信 --> ReadKey
+  ReadKey -- 読み出し/取得 --> Simulation
+  Simulation -- 書き込み/送信 --> WriteKey
+  WriteKey -- 読み出し/取得 --> Controller
 ```
 
 ## ファイル構成
 
 - `merimujoco.py` ... MuJoCoシミュレーションメイン・制御・Redis連携
-- `mujoco-redis.json` ... Redis接続設定ファイル
-- `urdf/scene.xml` ... ロボットモデル・シミュレーション環境定義
+- `redis.json` ... Redis接続設定ファイル（デフォルト・マネージャー用）
+- `redis-console.json` ... Redis接続設定ファイル（コンソール制御用）
+- `redis-mcp.json` ... Redis接続設定ファイル（MCPサーバー用）
+- `redis-mgr.json` ... Redis接続設定ファイル（マネージャーシステム用）
+- `mjcf/scene.xml` ... ロボットモデル・シミュレーション環境定義（MJCF形式）
+- `urdf/scene.xml` ... ロボットモデル・シミュレーション環境定義（URDF形式）
 - `redis_receiver.py` ... Redisからのデータ受信モジュール
 - `redis_transfer.py` ... Redisへのデータ送信モジュール
 - `README.md` ... このファイル
@@ -103,12 +147,38 @@ flowchart LR
 ### 使い方
 
 ```bash
+# デフォルト設定で起動
 python merimujoco.py
+
+# 特定のRedis設定を使用
+python merimujoco.py --redis-config redis-console.json
+
+# 試験中オプションを使用（受信値をセットせず、シミュレータ角度を送信）
+python merimujoco.py --redis-config redis-console.json --setjvalue false --getjvalue true
 ```
 
-### 設定ファイル（mujoco-redis.json）
+### コマンドラインオプション
+
+- `--redis-config <ファイル名>`: Redis設定JSONファイルを指定（デフォルト: `redis.json`）
+- `--setjvalue <true|false>`: Redisから受信した値を関節軸にセットする（デフォルト: `true`）**[試験中]**
+- `--getjvalue <true|false>`: MuJoCoの関節角度をmdata[]に格納してRedisに送信（デフォルト: `false`）**[試験中]**
+
+**重要**: `--setjvalue`と`--getjvalue`は現在試験中の機能です。本番環境での使用前に十分なテストを実施してください。
+
+### 設定ファイル
+
+### 設定ファイル
 
 Redis接続設定を JSON ファイルで管理します。ファイルが存在しない場合は安全なデフォルト値（127.0.0.1:6379）を使用します。
+
+#### 利用可能な設定ファイル
+
+- **redis.json**: デフォルト設定（`meridis_mgr_pub` → `meridis_sim_pub`）
+- **redis-console.json**: コンソール制御用（`meridis_console_pub` → `meridis_sim_pub`）
+- **redis-mcp.json**: MCPサーバー用（`meridis_mcp_pub` → `meridis_sim_pub`）
+- **redis-mgr.json**: マネージャー用（`meridis_mgr_pub` → `meridis_sim_pub`）
+
+#### 設定ファイル形式
 
 ```json
 {
@@ -117,8 +187,8 @@ Redis接続設定を JSON ファイルで管理します。ファイルが存在
     "port": 6379
   },
   "redis_keys": {
-    "read": "meridis2",
-    "write": "meridis"
+    "read": "meridis_console_pub",
+    "write": "meridis_sim_pub"
   }
 }
 ```
@@ -152,11 +222,11 @@ Redis接続設定を JSON ファイルで管理します。ファイルが存在
 ### データフロー
 
 ```
-制御システム → Redis[meridis2] → merimujoco.py → MuJoCo物理演算 → IMU/関節状態 → Redis[meridis] → 制御システム
+制御システム → Redis[read key] → merimujoco.py → MuJoCo物理演算 → IMU/関節状態 → Redis[write key] → 制御システム
 ```
 
-- **meridis2**: 外部制御システムからの関節角度指令、制御コマンド
-- **meridis**: シミュレーション結果のIMUデータ、関節状態、システム応答
+- **read キー** (`meridis_*_pub`): 外部制御システムからの関節角度指令、制御コマンド
+- **write キー** (`meridis_sim_pub`): シミュレーション結果のIMUデータ、関節状態、システム応答
 
 ### 特殊機能
 
@@ -192,9 +262,14 @@ joint_to_meridis = {
 # デフォルト設定でシミュレーション起動
 python merimujoco.py
 
-# カスタム設定ファイルを配置
-# mujoco-redis.json を編集してからシミュレーション起動
-python merimujoco.py
+# コンソール制御システム用設定で起動
+python merimujoco.py --redis-config redis-console.json
+
+# MCP制御システム用設定で起動
+python merimujoco.py --redis-config redis-mcp.json
+
+# 試験中オプションの使用例
+python merimujoco.py --redis-config redis-console.json --setjvalue false --getjvalue true
 ```
 
 実装の詳細については [merimujoco.py](merimujoco.py) を参照してください（関節マッピング、IMU計算、Redis連携、制御スレッドなど）。
