@@ -8,6 +8,7 @@ import platform
 import os
 import signal
 import sys
+import argparse
 
 import numpy as np
 import time
@@ -30,6 +31,7 @@ FLG_SET_RCVD = True             # Redisからのデータ受信フラグ
 FLG_CREATE_CTRL = False          # 制御信号作成フラグ
 FLG_SET_SNDD = True             # Redisへのデータ送信フラグ
 FLG_RESET_REQUEST = False       # リセット要求フラグ
+FLG_SET_JVALUE = True            # 受信した値を軸にセットするフラグ
 
 viewer = None  # MuJoCo viewer object
 
@@ -151,8 +153,24 @@ joint_to_meridis = {
     "r_ankle_roll":     [71,-1]
 }
 
+# コマンドライン引数の解析
+parser = argparse.ArgumentParser(description='MuJoCo simulation with Redis configuration')
+parser.add_argument('--redis-config', 
+                    type=str, 
+                    default='redis.json',
+                    help='Redis configuration JSON file (default: redis.json)')
+parser.add_argument('--setjvalue',
+                    type=str,
+                    choices=['true', 'false'],
+                    default='true',
+                    help='Set received values to joint axes (default: true)')
+args = parser.parse_args()
+
+# setjvalueフラグを設定
+FLG_SET_JVALUE = (args.setjvalue.lower() == 'true')
+
 # Redis設定の読み込み
-load_redis_config()
+load_redis_config(args.redis_config)
 
 redis_transfer = RedisTransfer(host=REDIS_HOST, port=REDIS_PORT, redis_key=REDIS_KEY_WRITE)
 redis_receiver = RedisReceiver(host=REDIS_HOST, port=REDIS_PORT, redis_key=REDIS_KEY_READ)
@@ -268,14 +286,16 @@ def motor_controller_thread():
                     # 受信したimuとcmd_velのデータを表示
                     # print(f"[Debug] rcv: {imu_r.orientation.x}, {imu_r.orientation.y}, {imu_r.orientation.z} + cmd_vel: {cmd_vel.linear.x}, {cmd_vel.linear.y}, {cmd_vel.angular.z}, cmd_btn: {cmd_btn}")
 
-                    for joint_name, meridis_index in joint_to_meridis.items():
-                        if joint_name in joint_names:
-                            # Handle joint positions (convert from radians to degrees)
-                            joint_idx = joint_names.index(joint_name)
-                            meridis_idx = joint_to_meridis[joint_name][0]
-                            meridis_mul = joint_to_meridis[joint_name][1]
-                            data.ctrl[joint_idx] = round(np.radians(float(rcv_data[meridis_idx])*meridis_mul), 2)
-                            #print(f"joint_name: {joint_name}, joint_idx: {joint_idx}, ctrl: {data.ctrl[joint_idx]}, mul: {joint_to_meridis[joint_name][1]}")
+                    # FLG_SET_JVALUEがTrueの場合のみ受信した値を軸にセット
+                    if FLG_SET_JVALUE:
+                        for joint_name, meridis_index in joint_to_meridis.items():
+                            if joint_name in joint_names:
+                                # Handle joint positions (convert from radians to degrees)
+                                joint_idx = joint_names.index(joint_name)
+                                meridis_idx = joint_to_meridis[joint_name][0]
+                                meridis_mul = joint_to_meridis[joint_name][1]
+                                data.ctrl[joint_idx] = round(np.radians(float(rcv_data[meridis_idx])*meridis_mul), 2)
+                                #print(f"joint_name: {joint_name}, joint_idx: {joint_idx}, ctrl: {data.ctrl[joint_idx]}, mul: {joint_to_meridis[joint_name][1]}")
 
                     # mdataの更新 +Hori 20250628
                     for i in range(len(mdata)):
