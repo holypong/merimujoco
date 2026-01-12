@@ -42,7 +42,7 @@ REDIS_PORT = 6379
 REDIS_KEY_READ = "meridis2"
 REDIS_KEY_WRITE = "meridis"
 
-def load_redis_config(json_file="mujoco-redis.json"):
+def load_redis_config(json_file="redis.json"):
     """Redis設定をJSONファイルから読み込む"""
     global REDIS_HOST, REDIS_PORT, REDIS_KEY_READ, REDIS_KEY_WRITE
     
