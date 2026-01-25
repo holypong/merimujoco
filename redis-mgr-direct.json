@@ -4,11 +4,11 @@
     "port": 6379
   },
   "redis_keys": {
-    "read": "meridis_console_pub",
+    "read": "meridis_mgr_pub",
     "write": "meridis_sim_pub"
   },
   "data_flow": {
-    "redis_to_joint": true,
-    "joint_to_redis": false
+    "redis_to_joint": false,
+    "joint_to_redis": true
   }
 }

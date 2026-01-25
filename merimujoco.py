@@ -48,6 +48,7 @@ REDIS_KEY_WRITE = "meridis"
 def load_redis_config(json_file="redis.json"):
     """Redis設定をJSONファイルから読み込む"""
     global REDIS_HOST, REDIS_PORT, REDIS_KEY_READ, REDIS_KEY_WRITE
+    global FLG_REDIS_TO_JOINT, FLG_JOINT_TO_REDIS
     
     try:
         if not os.path.exists(json_file):
@@ -71,11 +72,20 @@ def load_redis_config(json_file="redis.json"):
             if 'write' in config['redis_keys']:
                 REDIS_KEY_WRITE = config['redis_keys']['write']
         
+        # データフロー設定を読み込み
+        if 'data_flow' in config:
+            if 'redis_to_joint' in config['data_flow']:
+                FLG_REDIS_TO_JOINT = config['data_flow']['redis_to_joint']
+            if 'joint_to_redis' in config['data_flow']:
+                FLG_JOINT_TO_REDIS = config['data_flow']['joint_to_redis']
+        
         print(f"[Config] Loaded Redis configuration from '{json_file}'")
         print(f"[Config] Redis Server: {REDIS_HOST}:{REDIS_PORT}")
         print(f"[Config] Redis Keys: Read='{REDIS_KEY_READ}', Write='{REDIS_KEY_WRITE}'")
+        print(f"[Config] Data Flow: Redis->Joint={FLG_REDIS_TO_JOINT}, Joint->Redis={FLG_JOINT_TO_REDIS}")
         print(f"[Debug] redis: {config.get('redis', {})}")
         print(f"[Debug] redis_keys: {config.get('redis_keys', {})}")
+        print(f"[Debug] data_flow: {config.get('data_flow', {})}")
         return True
         
     except json.JSONDecodeError as e:
@@ -162,24 +172,9 @@ parser.add_argument('--redis',
                     type=str, 
                     default='redis.json',
                     help='Redis configuration JSON file (default: redis.json)')
-parser.add_argument('--redis_to_joint',
-                    type=str,
-                    choices=['true', 'false'],
-                    default='true',
-                    help='Set MuJoCo joint angles from Redis (default: true)')
-parser.add_argument('--joint_to_redis',
-                    type=str,
-                    choices=['true', 'false'],
-                    default='false',
-                    help='Set Redis from MuJoCo joint angles (default: false)')
 args = parser.parse_args()
 
-# redis_to_jointフラグを設定
-FLG_REDIS_TO_JOINT = (args.redis_to_joint.lower() == 'true')
-# joint_to_redisフラグを設定
-FLG_JOINT_TO_REDIS = (args.joint_to_redis.lower() == 'true')
-
-# Redis設定の読み込み
+# Redis設定の読み込み（data_flowの設定も含む）
 load_redis_config(args.redis)
 
 redis_transfer = RedisTransfer(host=REDIS_HOST, port=REDIS_PORT, redis_key=REDIS_KEY_WRITE)

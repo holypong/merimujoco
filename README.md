@@ -40,9 +40,9 @@ pip install mujoco numpy redis
 python merimujoco.py
 
 # 別のRedis設定ファイルを指定して起動
-python merimujoco.py --redis-config redis-console.json
-python merimujoco.py --redis-config redis-mcp.json
-python merimujoco.py --redis-config redis-mgr.json
+python merimujoco.py --redis redis-console.json
+python merimujoco.py --redis redis-mcp.json
+python merimujoco.py --redis redis-mgr.json
 ```
 
 - MuJoCoビューワーが起動し、3Dロボットシミュレーションが開始されます
@@ -59,15 +59,11 @@ python merimujoco.py --redis-config redis-mgr.json
 
 #### コマンドラインオプション
 
-- `--redis-config <ファイル名>`: Redis設定JSONファイルを指定（デフォルト: `redis.json`）
-- `--redis_to_joint <true|false>`: Redisから受信した値を関節軸にセットする（デフォルト: `true`）**[試験中]**
-- `--joint_to_redis <true|false>`: 関節角度をmdata[]に格納してRedisに送信（デフォルト: `false`）**[試験中]**
-
-**注意**: `--redis_to_joint`と`--joint_to_redis`オプションは現在試験中の機能です。本番環境での使用前に十分なテストを行ってください。
+- `--redis <ファイル名>`: Redis設定JSONファイルを指定（デフォルト: `redis.json`）
 
 ```bash
-# 例: 受信値を関節にセットせず、シミュレータの関節角度を送信
-python merimujoco.py --redis-config redis-console.json --redis_to_joint false --joint_to_redis true
+# 例: コンソール用設定で起動
+python merimujoco.py --redis redis-console.json
 ```
 
 ### 3. Redis設定ファイル
@@ -94,9 +90,25 @@ Redis接続設定をJSONファイルで管理します。ファイルが存在�
   "redis_keys": {
     "read": "meridis_console_pub",
     "write": "meridis_sim_pub"
+  },
+  "data_flow": {
+    "redis_to_joint": true,
+    "joint_to_redis": false
   }
 }
 ```
+
+##### 設定項目
+
+- **redis**: Redisサーバーの接続情報
+- **redis_keys**: データ交換用のRedisキー
+  - `read`: 制御システムからの指令データを読み取るキー
+  - `write`: シミュレーション状態データを書き込むキー
+- **data_flow**: データフローの制御 **[試験中]**
+  - `redis_to_joint`: Redisから受信した値をMuJoCoの関節にセット (デフォルト: `true`)
+  - `joint_to_redis`: MuJoCoの関節角度をRedisに送信 (デフォルト: `false`)
+
+**注意**: `data_flow`設定は現在試験中の機能です。本番環境での使用前に十分なテストを行ってください。
 
 各ファイルは異なる`read`キー（受信用）を使用し、同じ`write`キー（送信用）を共有することで、複数の制御システムからシミュレータを制御できます。
 
@@ -151,19 +163,17 @@ flowchart LR
 python merimujoco.py
 
 # 特定のRedis設定を使用
-python merimujoco.py --redis-config redis-console.json
+python merimujoco.py --redis redis-console.json
 
-# 試験中オプションを使用（受信値をセットせず、シミュレータ角度を送信）
-python merimujoco.py --redis-config redis-console.json --redis_to_joint false --joint_to_redis true
+# MCP用設定で起動（redis-mcp.jsonでdata_flowを設定）
+python merimujoco.py --redis redis-mcp.json
 ```
 
 ### コマンドラインオプション
 
-- `--redis-config <ファイル名>`: Redis設定JSONファイルを指定（デフォルト: `redis.json`）
-- `--redis_to_joint <true|false>`: Redisから受信した値を関節軸にセットする（デフォルト: `true`）**[試験中]**
-- `--joint_to_redis <true|false>`: 関節角度をmdata[]に格納してRedisに送信（デフォルト: `false`）**[試験中]**
+- `--redis <ファイル名>`: Redis設定JSONファイルを指定（デフォルト: `redis.json`）
 
-**重要**: `--redis_to_joint`と`--joint_to_redis`は現在試験中の機能です。本番環境での使用前に十分なテストを実施してください。
+データフローの制御（`redis_to_joint`, `joint_to_redis`）は、各Redis設定ファイルの`data_flow`ブロックで設定します。
 
 ### 設定ファイル
 
@@ -263,13 +273,10 @@ joint_to_meridis = {
 python merimujoco.py
 
 # コンソール制御システム用設定で起動
-python merimujoco.py --redis-config redis-console.json
+python merimujoco.py --redis redis-console.json
 
 # MCP制御システム用設定で起動
-python merimujoco.py --redis-config redis-mcp.json
-
-# 試験中オプションの使用例
-python merimujoco.py --redis-config redis-console.json --redis_to_joint false --joint_to_redis true
+python merimujoco.py --redis redis-mcp.json
 ```
 
 実装の詳細については [merimujoco.py](merimujoco.py) を参照してください（関節マッピング、IMU計算、Redis連携、制御スレッドなど）。
