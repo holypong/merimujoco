@@ -31,8 +31,8 @@ FLG_SET_RCVD = True             # Redisからのデータ受信フラグ
 FLG_CREATE_CTRL = False          # 制御信号作成フラグ
 FLG_SET_SNDD = True             # Redisへのデータ送信フラグ
 FLG_RESET_REQUEST = False       # リセット要求フラグ
-FLG_SET_JVALUE = True            # 受信した値を軸にセットするフラグ
-FLG_GET_JVALUE = False           # MuJoCoの関節角度をmdata[]に格納するフラグ
+FLG_REDIS_TO_JOINT = True        # Redisから受信した値を関節にセットするフラグ
+FLG_JOINT_TO_REDIS = False       # 関節角度をRedisに送信するフラグ
 
 viewer = None  # MuJoCo viewer object
 
@@ -162,22 +162,22 @@ parser.add_argument('--redis',
                     type=str, 
                     default='redis.json',
                     help='Redis configuration JSON file (default: redis.json)')
-parser.add_argument('--setjvalue',
+parser.add_argument('--redis_to_joint',
                     type=str,
                     choices=['true', 'false'],
                     default='true',
-                    help='Set received values to joint axes (default: true)')
-parser.add_argument('--getjvalue',
+                    help='Set MuJoCo joint angles from Redis (default: true)')
+parser.add_argument('--joint_to_redis',
                     type=str,
                     choices=['true', 'false'],
                     default='false',
-                    help='Get MuJoCo joint angles and store to mdata[] (default: false)')
+                    help='Set Redis from MuJoCo joint angles (default: false)')
 args = parser.parse_args()
 
-# setjvalueフラグを設定
-FLG_SET_JVALUE = (args.setjvalue.lower() == 'true')
-# getjvalueフラグを設定
-FLG_GET_JVALUE = (args.getjvalue.lower() == 'true')
+# redis_to_jointフラグを設定
+FLG_REDIS_TO_JOINT = (args.redis_to_joint.lower() == 'true')
+# joint_to_redisフラグを設定
+FLG_JOINT_TO_REDIS = (args.joint_to_redis.lower() == 'true')
 
 # Redis設定の読み込み
 load_redis_config(args.redis)
@@ -296,8 +296,8 @@ def motor_controller_thread():
                     # 受信したimuとcmd_velのデータを表示
                     # print(f"[Debug] rcv: {imu_r.orientation.x}, {imu_r.orientation.y}, {imu_r.orientation.z} + cmd_vel: {cmd_vel.linear.x}, {cmd_vel.linear.y}, {cmd_vel.angular.z}, cmd_btn: {cmd_btn}")
 
-                    # FLG_SET_JVALUEがTrueの場合のみ受信した値を軸にセット
-                    if FLG_SET_JVALUE:
+                    # FLG_REDIS_TO_JOINTがTrueの場合のみRedisから受信した値を関節にセット
+                    if FLG_REDIS_TO_JOINT:
                         for joint_name, meridis_index in joint_to_meridis.items():
                             if joint_name in joint_names:
                                 # Handle joint positions (convert from radians to degrees)
@@ -423,8 +423,8 @@ def motor_controller_thread():
                 mdata[13] = round(imu_mjc.orientation.y, 4)   # pitch(deg)
                 mdata[14] = round(imu_mjc.orientation.z, 4)   # yaw(deg)
                 
-                # FLG_GET_JVALUEがTrueの場合、MuJoCoの関節角度をmdata[]に格納
-                if FLG_GET_JVALUE:
+                # FLG_JOINT_TO_REDISがTrueの場合、関節角度をRedisに送信
+                if FLG_JOINT_TO_REDIS:
                     for joint_name, meridis_index in joint_to_meridis.items():
                         if joint_name in joint_names:
                             joint_idx = joint_names.index(joint_name)

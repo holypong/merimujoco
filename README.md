@@ -60,14 +60,14 @@ python merimujoco.py --redis-config redis-mgr.json
 #### コマンドラインオプション
 
 - `--redis-config <ファイル名>`: Redis設定JSONファイルを指定（デフォルト: `redis.json`）
-- `--setjvalue <true|false>`: Redisから受信した値を関節軸にセットする（デフォルト: `true`）**[試験中]**
-- `--getjvalue <true|false>`: MuJoCoの関節角度をmdata[]に格納してRedisに送信（デフォルト: `false`）**[試験中]**
+- `--redis_to_joint <true|false>`: Redisから受信した値を関節軸にセットする（デフォルト: `true`）**[試験中]**
+- `--joint_to_redis <true|false>`: 関節角度をmdata[]に格納してRedisに送信（デフォルト: `false`）**[試験中]**
 
-**注意**: `--setjvalue`と`--getjvalue`オプションは現在試験中の機能です。本番環境での使用前に十分なテストを行ってください。
+**注意**: `--redis_to_joint`と`--joint_to_redis`オプションは現在試験中の機能です。本番環境での使用前に十分なテストを行ってください。
 
 ```bash
 # 例: 受信値を関節にセットせず、シミュレータの関節角度を送信
-python merimujoco.py --redis-config redis-console.json --setjvalue false --getjvalue true
+python merimujoco.py --redis-config redis-console.json --redis_to_joint false --joint_to_redis true
 ```
 
 ### 3. Redis設定ファイル
@@ -154,16 +154,16 @@ python merimujoco.py
 python merimujoco.py --redis-config redis-console.json
 
 # 試験中オプションを使用（受信値をセットせず、シミュレータ角度を送信）
-python merimujoco.py --redis-config redis-console.json --setjvalue false --getjvalue true
+python merimujoco.py --redis-config redis-console.json --redis_to_joint false --joint_to_redis true
 ```
 
 ### コマンドラインオプション
 
 - `--redis-config <ファイル名>`: Redis設定JSONファイルを指定（デフォルト: `redis.json`）
-- `--setjvalue <true|false>`: Redisから受信した値を関節軸にセットする（デフォルト: `true`）**[試験中]**
-- `--getjvalue <true|false>`: MuJoCoの関節角度をmdata[]に格納してRedisに送信（デフォルト: `false`）**[試験中]**
+- `--redis_to_joint <true|false>`: Redisから受信した値を関節軸にセットする（デフォルト: `true`）**[試験中]**
+- `--joint_to_redis <true|false>`: 関節角度をmdata[]に格納してRedisに送信（デフォルト: `false`）**[試験中]**
 
-**重要**: `--setjvalue`と`--getjvalue`は現在試験中の機能です。本番環境での使用前に十分なテストを実施してください。
+**重要**: `--redis_to_joint`と`--joint_to_redis`は現在試験中の機能です。本番環境での使用前に十分なテストを実施してください。
 
 ### 設定ファイル
 
@@ -269,7 +269,7 @@ python merimujoco.py --redis-config redis-console.json
 python merimujoco.py --redis-config redis-mcp.json
 
 # 試験中オプションの使用例
-python merimujoco.py --redis-config redis-console.json --setjvalue false --getjvalue true
+python merimujoco.py --redis-config redis-console.json --redis_to_joint false --joint_to_redis true
 ```
 
 実装の詳細については [merimujoco.py](merimujoco.py) を参照してください（関節マッピング、IMU計算、Redis連携、制御スレッドなど）。
