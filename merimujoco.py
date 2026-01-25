@@ -430,8 +430,8 @@ def motor_controller_thread():
                             joint_idx = joint_names.index(joint_name)
                             meridis_idx = joint_to_meridis[joint_name][0]
                             meridis_mul = joint_to_meridis[joint_name][1]
-                            # data.qpos[joint_idx]はラジアン、度数に変換して格納
-                            joint_angle_deg = math.degrees(data.qpos[joint_idx]) * meridis_mul
+                            # data.ctrl[joint_idx]はラジアン、度数に変換して格納（multiplierで元に戻す）
+                            joint_angle_deg = math.degrees(data.ctrl[joint_idx]) / meridis_mul
                             mdata[meridis_idx] = round(joint_angle_deg, 4)
                 
                 #start_time = time.perf_counter()
