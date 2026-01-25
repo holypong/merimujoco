@@ -74,6 +74,8 @@ def load_redis_config(json_file="redis.json"):
         print(f"[Config] Loaded Redis configuration from '{json_file}'")
         print(f"[Config] Redis Server: {REDIS_HOST}:{REDIS_PORT}")
         print(f"[Config] Redis Keys: Read='{REDIS_KEY_READ}', Write='{REDIS_KEY_WRITE}'")
+        print(f"[Debug] redis: {config.get('redis', {})}")
+        print(f"[Debug] redis_keys: {config.get('redis_keys', {})}")
         return True
         
     except json.JSONDecodeError as e:
@@ -156,7 +158,7 @@ joint_to_meridis = {
 
 # コマンドライン引数の解析
 parser = argparse.ArgumentParser(description='MuJoCo simulation with Redis configuration')
-parser.add_argument('--redis-config', 
+parser.add_argument('--redis', 
                     type=str, 
                     default='redis.json',
                     help='Redis configuration JSON file (default: redis.json)')
@@ -178,7 +180,7 @@ FLG_SET_JVALUE = (args.setjvalue.lower() == 'true')
 FLG_GET_JVALUE = (args.getjvalue.lower() == 'true')
 
 # Redis設定の読み込み
-load_redis_config(args.redis_config)
+load_redis_config(args.redis)
 
 redis_transfer = RedisTransfer(host=REDIS_HOST, port=REDIS_PORT, redis_key=REDIS_KEY_WRITE)
 redis_receiver = RedisReceiver(host=REDIS_HOST, port=REDIS_PORT, redis_key=REDIS_KEY_READ)
