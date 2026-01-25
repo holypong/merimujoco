@@ -43,6 +43,7 @@ python merimujoco.py
 python merimujoco.py --redis redis-console.json
 python merimujoco.py --redis redis-mcp.json
 python merimujoco.py --redis redis-mgr.json
+python merimujoco.py --redis redis-mgr-direct.json
 ```
 
 - MuJoCoビューワーが起動し、3Dロボットシミュレーションが開始されます
@@ -74,10 +75,11 @@ Redis接続設定をJSONファイルで管理します。ファイルが存在�
 
 プロジェクトには複数のRedis設定ファイルが用意されており、異なる制御システムとの連携に対応しています：
 
-- **redis.json**: デフォルト設定（マネージャーシステム用）
-- **redis-console.json**: コンソール制御システム用
-- **redis-mcp.json**: MCPサーバー用
-- **redis-mgr.json**: マネージャーシステム用
+- **redis.json**: デフォルト設定（マネージャーシステム用、`meridis_mgr_pub`）
+- **redis-console.json**: コンソール制御システム用（`meridis_console_pub`）
+- **redis-mcp.json**: MCPサーバー用（`meridis_mcp_pub`）
+- **redis-mgr.json**: マネージャーシステム用（`meridis_mgr_pub`）
+- **redis-mgr-direct.json**: MuJoCoビューアーでの関節操作をRedisに反映（マネージャーシステム用、`meridis_mgr_pub`、`joint_to_redis: true`）
 
 #### 設定ファイルの形式
 
@@ -101,6 +103,8 @@ Redis接続設定をJSONファイルで管理します。ファイルが存在�
 ##### 設定項目
 
 - **redis**: Redisサーバーの接続情報
+  - `host`: Redisサーバーのホスト名またはIPアドレス
+  - `port`: Redisサーバーのポート番号
 - **redis_keys**: データ交換用のRedisキー
   - `read`: 制御システムからの指令データを読み取るキー
   - `write`: シミュレーション状態データを書き込むキー
@@ -142,6 +146,7 @@ flowchart LR
 - `redis-console.json` ... Redis接続設定ファイル（コンソール制御用）
 - `redis-mcp.json` ... Redis接続設定ファイル（MCPサーバー用）
 - `redis-mgr.json` ... Redis接続設定ファイル（マネージャーシステム用）
+- `redis-mgr-direct.json` ... Redis接続設定ファイル（MuJoCoビューアーでの関節操作をRedisに反映・マネージャーシステム用）
 - `mjcf/scene.xml` ... ロボットモデル・シミュレーション環境定義（MJCF形式）
 - `urdf/scene.xml` ... ロボットモデル・シミュレーション環境定義（URDF形式）
 - `redis_receiver.py` ... Redisからのデータ受信モジュール
