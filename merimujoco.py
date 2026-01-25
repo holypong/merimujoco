@@ -192,8 +192,8 @@ imu_lock = threading.Lock()
 
 # モデルを読み込む
 #model = mujoco.MjModel.from_xml_path('urdf/scene.xml')
-model = mujoco.MjModel.from_xml_path('roid1_test_mjcf/scene.xml')
-#model = mujoco.MjModel.from_xml_path('roid1_middlefoot_mjcf/scene.xml')
+#model = mujoco.MjModel.from_xml_path('roid1_test_mjcf/scene.xml')
+model = mujoco.MjModel.from_xml_path('roid1_middlefoot_mjcf/scene.xml')
 data = mujoco.MjData(model)
 
 

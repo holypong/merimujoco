@@ -1,7 +1,7 @@
 <mujoco model="roid1_20260103d_mjcf scene">
   <include file="roid1_20260103d_mjcf.xml"/>
 
-  <statistic center="0 0 0.400000" extent="0.800000"/>
+  <statistic center="0 0 0.500000" extent="0.800000"/>
 
   <visual>
     <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3" specular="0 0 0"/>
