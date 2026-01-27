@@ -1,5 +1,5 @@
-<mujoco model="roid1_middlefoot_mjcf scene">
-  <include file="roid1_middlefoot_mjcf.xml"/>
+<mujoco model="roid1_mjcf scene">
+  <include file="roid1_mjcf.xml"/>
 
   <statistic center="0 0 0.500000" extent="0.800000"/>
 

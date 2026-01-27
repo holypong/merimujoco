@@ -120,9 +120,11 @@ class Twist:
     linear: Vector3
     angular: Vector3
 
-
-"""
-# 20260103版の関節名リスト
+# 20260125版の関節名リスト
+# 読込む roid1_mjcf.xml のjoint名と joint_names[] が一致しない場合でも、
+# MuJoCo の data.ctrl はモデルの actuator順序に基づいてインデックス付けされることから
+# joint_namesリストの順序がXMLファイルのactuator順序と一致していれば、問題なく扱える。
+# ただし、可読性のためには、joint_names[]リストの関節名を一致させることが望ましい。
 joint_names = [
     "c_chest", "c_head", "l_shoulder_pitch", "l_shoulder_roll", "l_elbow_yaw", "l_elbow_pitch",
     "r_shoulder_pitch", "r_shoulder_roll", "r_elbow_yaw", "r_elbow_pitch",
@@ -165,51 +167,6 @@ joint_to_meridis = {
     "r_ankle_pitch":    [69, 1],
     "r_ankle_roll":     [71,-1]
 }
-"""
-
-# ダミーの関節名リスト
-# 20260124版の関節名リスト
-joint_names = [
-    "c_waist_joint", "c_chest_joint", "c_head_joint", "l_shoulder_joint", "l_arm_upper_joint", "l_elbow_joint", "l_arm_lower_joint",
-    "r_shoulder_joint", "r_arm_upper_joint", "r_elbow_joint", "r_arm_lower_joint",
-    "l_hipjoint_upper_joint", "l_hipjoint_lower_joint", "l_leg_upper_joint", "l_leg_lower_joint", "l_ankle_joint", "l_foot_middle_joint",
-    "r_hipjoint_upper_joint", "r_hipjoint_lower_joint", "r_leg_upper_joint", "r_leg_lower_joint", "r_ankle_joint", "r_foot_middle_joint"
-]
-
-
-# Joint mapping dictionary
-joint_to_meridis = {
-    # Waist
-    "c_waist_joint":        [15, 1],    # dummy
-    # chest
-    "c_chest_joint":        [51, 1],
-    # Head
-    "c_head_joint":         [21, 1],
-    # Left arm
-    "l_shoulder_joint":     [23, 1],
-    "l_arm_upper_joint":    [25, 1],
-    "l_elbow_joint":        [27, 1],
-    "l_arm_lower_joint":    [29, 1],
-    # Right arm
-    "r_shoulder_joint":     [53, 1],
-    "r_arm_upper_joint":    [55,-1],
-    "r_elbow_joint":        [57,-1],
-    "r_arm_lower_joint":    [59, 1],
-    # Left leg
-    "l_hipjoint_upper_joint": [31, 1],
-    "l_hipjoint_lower_joint": [33, 1],
-    "l_leg_upper_joint":    [35, 1],
-    "l_leg_lower_joint":    [37, 1],
-    "l_ankle_joint":        [39, 1],
-    "l_foot_middle_joint":  [41, 1],
-    # Right leg
-    "r_hipjoint_upper_joint": [61,-1],
-    "r_hipjoint_lower_joint": [63,-1],
-    "r_leg_upper_joint":     [65, 1],
-    "r_leg_lower_joint":     [67, 1],
-    "r_ankle_joint":         [69, 1],
-    "r_foot_middle_joint":   [71,-1]
-}
 
 # コマンドライン引数の解析
 parser = argparse.ArgumentParser(description='MuJoCo simulation with Redis configuration')
@@ -238,7 +195,8 @@ imu_lock = threading.Lock()
 # モデルを読み込む
 #model = mujoco.MjModel.from_xml_path('urdf/scene.xml')
 #model = mujoco.MjModel.from_xml_path('roid1_test_mjcf/scene.xml')
-model = mujoco.MjModel.from_xml_path('roid1_middlefoot_mjcf/scene.xml')
+#model = mujoco.MjModel.from_xml_path('roid1_middlefoot_mjcf/scene.xml')
+model = mujoco.MjModel.from_xml_path('roid1_mjcf/scene.xml')
 data = mujoco.MjData(model)
 
 
