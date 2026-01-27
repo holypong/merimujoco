@@ -251,14 +251,61 @@ Redis接続設定を JSON ファイルで管理します。ファイルが存在
 - **用途**: 制御実験の初期化、異常状態からの復旧
 
 #### 関節マッピング
+##### joint_names[] と XMLファイルのjoint名
+- **概要**: `merimujoco.py` の `joint_names` リストは、MuJoCoモデルのactuator順序に基づいてインデックス付けされた関節名を定義しています。
+- **注意点**: 読み込む `roid1_mjcf.xml` のjoint名と `joint_names[]` が一致しない場合でも、MuJoCo の `data.ctrl` はモデルのactuator順序に基づいてインデックス付けされることから、`joint_names` リストの順序がXMLファイルのactuator順序と一致していれば、問題なく扱えます。
+- **推奨**: 可読性のためには、`joint_names[]` リストの関節名をXMLファイルのjoint名と一致させることを推奨します。
+
+```python
+joint_names = [
+    "c_chest", "c_head", "l_shoulder_pitch", "l_shoulder_roll", "l_elbow_yaw", "l_elbow_pitch",
+    "r_shoulder_pitch", "r_shoulder_roll", "r_elbow_yaw", "r_elbow_pitch",
+    "l_hip_yaw", "l_hip_roll", "l_thigh_pitch", "l_knee_pitch", "l_ankle_pitch", "l_ankle_roll",
+    "r_hip_yaw", "r_hip_roll", "r_thigh_pitch", "r_knee_pitch", "r_ankle_pitch", "r_ankle_roll"
+]
+```
+##### joint_to_meridis[] と meridis_sim_pub テーブル
+- **概要**: `joint_to_meridis` 辞書は、各関節名をMeridisデータ配列のインデックスと乗数にマッピングします。
+これにより、Redisから受信した関節角度データを適切に変換してMuJoCoの`data.ctrl`に適用できます。
+- **構造**: 各エントリは `[インデックス, 乗数]` の形式です
+  - インデックスはMeridis配列の位置
+  - 乗数は符号反転などの調整
+- **用途**: Redis経由のデータ交換で、外部制御システムの指令値をシミュレーション内の関節制御に変換します。
+
 ```python
 joint_to_meridis = {
-    "c_head":           [19, 1],    # 頭部ヨー
-    "l_shoulder_pitch": [21, 1],    # 左肩ピッチ
-    "l_thigh_pitch":    [23,-1],    # 左股ピッチ
-    "l_knee_pitch":     [25, 1],    # 左膝ピッチ
-    "l_ankle_pitch":    [27, 1],    # 左足首ピッチ
-    # ... 右側関節も同様
+    # Base link
+    "base_roll":        [12, 1],
+    "base_pitch":       [13, 1],
+    "base_yaw":         [14, 1],
+    # Head
+    "c_head":           [21, 1],
+    # Left arm
+    "l_shoulder_pitch": [23, 1],
+    "l_shoulder_roll":  [25, 1],
+    "l_elbow_yaw":      [27, 1],
+    "l_elbow_pitch":    [29, 1],
+    # Left leg
+    "l_hip_yaw":        [31, 1],
+    "l_hip_roll":       [33, 1],
+    "l_thigh_pitch":    [35, 1],
+    "l_knee_pitch":     [37, 1],
+    "l_ankle_pitch":    [39, 1],
+    "l_ankle_roll":     [41, 1],
+    # chest
+    "c_chest":          [51, 1],
+    # Right arm
+    "r_shoulder_pitch": [53, 1],
+    "r_shoulder_roll":  [55,-1],
+    "r_elbow_yaw":      [57,-1],
+    "r_elbow_pitch":    [59, 1],
+    # Right leg
+    "r_hip_yaw":        [61,-1],
+    "r_hip_roll":       [63,-1],
+    "r_thigh_pitch":    [65, 1],
+    "r_knee_pitch":     [67, 1],
+    "r_ankle_pitch":    [69, 1],
+    "r_ankle_roll":     [71,-1]
 }
 ```
 
