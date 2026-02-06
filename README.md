@@ -27,13 +27,54 @@ Redisを介してロボット制御システムとの連携を行い、物理シ
 - **リアルタイム制御**  
   専用スレッドによる高頻度データ処理（制御・送受信）
 
-## 利用方法
+
+## Meridisのインストール
+
+- 本機能を実行する前に、下記リポジトリのツールをインストールしてください
+  https://github.com/holypong/meridis
+
+## Merimujocoのインストール
+
+- Meridisのインストールが終わったら、本リポジトリのインストールをすすめてください。
 
 ### 1. 必要なパッケージのインストール
 
 ```bash
 pip install mujoco numpy redis
 ```
+
+
+拡張子jsonのファイルをコマンドのオプションに加えることで、起動時の設定を変更できます。
+
+### シミュレータロボットをダンスさせる
+python merimujoco.py --redis redis-calc.json
+python meridis_moition_calc.py
+
+- meridis_motion_calc.py の中で計算したロボット全身の動きが、Mujoco上のロボットに反映されます。
+
+
+### リアルロボットをダンスさせる
+python merimujoco.py --redis redis-calc.json
+python meridis_moition_calc.py
+python meridis_manager.py --mgr mgr_sim2real.json
+
+- meridis_motion_calc.py の中で計算したロボット全身の動きが、リアルロボットにも反映されます。
+
+
+### Mujocoで動かしたとおりにリアルロボットを動かす
+python merimujoco.py --redis redis-mgr-direct.json
+python meridis_manager.py --mgr mgr_sim2real.json
+
+- mujoco上でスライダー操作してつくったロボットの動きが、リアルロボットにも反映されます。
+
+
+### リアルのロボットを動きを、Mujocoで再現する
+python merimujoco.py --redis redis-mgr.json
+python meridis_manager.py --mgr mgr_real2sim.json
+
+- リアルロボットの動きが、mujocoのロボットにも反映されます。
+
+
 
 ### 2. シミュレーションの起動
 
@@ -42,10 +83,10 @@ pip install mujoco numpy redis
 python merimujoco.py
 
 # 別のRedis設定ファイルを指定して起動
-python merimujoco.py --redis redis-console.json
-python merimujoco.py --redis redis-mcp.json
-python merimujoco.py --redis redis-mgr.json
 python merimujoco.py --redis redis-mgr-direct.json
+python merimujoco.py --redis redis-mgr.json
+-python merimujoco.py --redis redis-console.json #近日公開
+-python merimujoco.py --redis redis-mcp.json　#近日公開
 ```
 
 - MuJoCoビューワーが起動し、3Dロボットシミュレーションが開始されます
