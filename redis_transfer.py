@@ -9,7 +9,7 @@ import socket
 
 REDIS_HOST = 'localhost'
 REDIS_PORT = 6379
-REDIS_KEY = 'meridis'
+REDIS_KEY = 'meridis_calc_pub'
 
 class RedisTransfer:
     def __init__(self, host=REDIS_HOST, port=REDIS_PORT, redis_key=REDIS_KEY,
@@ -41,7 +41,7 @@ class RedisTransfer:
             # Initialize redis_key if it doesn't exist
             if not self.redis_client.exists(self.redis_key):
                 for i in range(self.meridis_size):                                   # ハッシュの場合
-                    self.redis_client.hset(self.redis_key, i, 0)
+                    self.redis_client.hset(self.redis_key, str(i), "0")  # キーを文字列に変換
                 print(f"Initialized Redis list '{self.redis_key}' with {self.meridis_size} elements.")
             else:
                 print(f"Redis list '{self.redis_key}' already exists.")
@@ -72,14 +72,19 @@ class RedisTransfer:
         redis_key = key if key is not None else self.redis_key
 
         try:    
-            # データをハッシュ構造で保存
-            #for i, value in enumerate(data):
-            #    self.redis_client.hset(redis_key, i, value)
-            
-            # データをハッシュ構造で保存（1回の操作で全てを設定）
+            # データをハッシュ構造で保存（パフォーマンスとバージョン互換性を両立）
             # Ensure values are plain numeric strings to avoid storing numpy reprs like 'np.float64(22.92)'
             hash_data = {str(i): str(float(value)) for i, value in enumerate(data)}
-            self.redis_client.hset(redis_key, mapping=hash_data)
+            
+            try:
+                # 新しいRedis版（Redis >= 4.0）を試行（高速）
+                self.redis_client.hset(redis_key, mapping=hash_data)
+            except (TypeError, redis.RedisError):
+                # 古いRedis版にフォールバック（pipelineで高速化）
+                pipe = self.redis_client.pipeline()
+                for i, value in enumerate(data):
+                    pipe.hset(redis_key, str(i), str(float(value)))
+                pipe.execute()
 
         except redis.RedisError as e:
             print(f"[Redis Error | set_data] Unexpected error: {str(e)}")        

@@ -456,7 +456,9 @@ def signal_handler(sig, frame):
 
 # SIGINT (Ctrl+C) とSIGTSTP (Ctrl+Z) のシグナルハンドラを設定
 signal.signal(signal.SIGINT, signal_handler)
-signal.signal(signal.SIGTSTP, signal_handler)
+# SIGTSTPはUnix/Linux系でのみ利用可能（Windowsでは利用不可）
+if hasattr(signal, 'SIGTSTP'):
+    signal.signal(signal.SIGTSTP, signal_handler)
 
 # メインループで制御＋mj_step
 start_time = time.time()

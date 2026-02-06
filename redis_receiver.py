@@ -11,7 +11,7 @@ import argparse
 
 REDIS_HOST = 'localhost'
 REDIS_PORT = 6379
-REDIS_KEY = 'meridis'
+REDIS_KEY = 'meridis_calc_pub'
 
 # RedisReceiverクラス
 class RedisReceiver:
