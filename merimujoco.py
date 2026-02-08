@@ -201,13 +201,14 @@ data = mujoco.MjData(model)
 
 
 # --- 起動時に強制的に物理パラメータを上書き ---
-model.opt.gravity[:] = [0, 0, -9.8]           # 重力
-model.opt.timestep = 0.001                    # タイムステップ調整
-model.opt.integrator = mujoco.mjtIntegrator.mjINT_RK4  # 安定な積分器に変更
-# 全関節の減衰（damping）を強制上書き
-model.dof_damping[:] = 5.0                    # ブレ防止
+model.opt.gravity[:] = [0, 0, -9.8]           # 重力（地球標準）
+model.opt.timestep = 0.001                    # タイムステップ（1ms）
+model.opt.integrator = mujoco.mjtIntegrator.mjINT_RK4  # 安定な積分器
+# 関節減衰を適度に設定（XMLのデフォルト0.1を維持）
+# model.dof_damping[:] = 5.0  # 大きすぎるためコメントアウト
 # 全geomの摩擦係数を上書き（静止摩擦、動摩擦、粘着摩擦）
-#model.geom_friction[:, :] = [1.2, 0.8, 0.01]  # 着地安定化用の摩擦調整
+model.geom_friction[:, :] = [1.2, 0.8, 0.01]  # 着地安定化用の摩擦調整
+print(f"[Config] Gravity: {model.opt.gravity}, Timestep: {model.opt.timestep}")
 
 
 
@@ -463,9 +464,10 @@ if hasattr(signal, 'SIGTSTP'):
 # メインループで制御＋mj_step
 start_time = time.time()
 
-print("[Info] Simulation started. Press Esc, Ctrl+C, or Ctrl+Z to stop.")
+print("[Info] Simulation started. Push [x]button or Select Menu [File -> Quit] to stop.")
 
 # MuJoCoビューアーを起動（ブロッキング実行）
+# Note: フォントスケールはビューワーのUI内で手動調整可能です
 print("[Info] Launching MuJoCo viewer...")
 mujoco.viewer.launch(model, data)
 
