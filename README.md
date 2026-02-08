@@ -13,8 +13,6 @@
 
 merimujocoは外部システムとのデータ送受信において、柔軟なデータ構造かつ高速なインメモリデータベース`Redis`を使用する**meridis**モジュールとの連動で、**外部システム**との円滑な連携の実現を特長としています。
 
-![merimujoco](image/merimujoco.png)
-
 ## 主な機能
 
 - **MuJoCo物理シミュレーション**
@@ -117,142 +115,75 @@ python merimujoco.py
 **ウィンドウ右上の「×」ボタン、または左メニュー `File`->`Quit`で終了してください。**
 
 
-### 🔗 Step 2: 動作生成プログラムとの連携
+### 🔗 Step 2: Redis連携の動作確認
 
-次にRedis経由でのデータ送受信を確認します：
-`calc_dance_motion.py`というダンスの動作生成プログラムを用意しました。
-このプログラムを改造すれば、歩行モーションなど数値計算結果をシミュレーション上で検証できます。
-
-```bash
-# ターミナル1: シミュレーション起動
-python merimujoco.py --redis redis-calc.json
-```
-
-```bash
-# ターミナル2: 別ターミナルでダンスモーションを作成する
-python calc_dance_motion.py
-```
-
-![merimujoco](image/merimujoco_dance.png)
-
-**✅ 成功確認:**
-- シミュレーションロボットがダンスを再生する
-
-**⚠️ 重要：merimujoco 終了方法**  
-**ウィンドウ右上の「×」ボタン、または左メニュー `File`->`Quit`で終了してください。**
-
-**⚠️ 重要：merimujoco以外の 終了方法**  
-**起動したターミナル内で、CTRL+Cで終了してください**
-
-
-### 🤖 Step 3: シミュレーションからリアルロボットを制御（１）
-
-リアルロボットがある場合：シミュレーションロボットのダンスの動きをリアルロボットに同期させる。
-シミュレータとリアルのデジタルツインを体験してください。
-
-**⚠️ 重要：meridisn_manager.py を実行するときは [meridis マニュアル](https://github.com/holypong/meridis/blob/main/README.md)をよく読んでください**
-- meridis の インストールディレクトリ下でうごかしてください
-- `network.json`のネットワーク設定を確認してください
-- `mgr_sim2real.json`のネットワーク設定を確認してください
-
-```bash
-# ターミナル1: シミュレーション起動
-python merimujoco.py --redis redis-calc.json
-```
-
-```bash
-# ターミナル2: モーション生成
-python meridis_motion_calc.py
-```
-
-```bash
-# ターミナル3: ブリッジ(Sim2Real)
-python meridis_manager.py --mgr mgr_sim2real.json
-```
-
-**✅ 成功確認:**
-- シミュレーションロボットがダンスを再生する
-- 同じ動きがリアルロボットでも再現される
-
-**⚠️ 重要：merimujoco 終了方法**  
-**ウィンドウ右上の「×」ボタン、または左メニュー `File`->`Quit`で終了してください。**
-
-**⚠️ 重要：merimujoco以外の 終了方法**  
-**起動したターミナル内で、CTRL+Cで終了してください**
-
-
-### 🤖 Step 4: シミュレーションからリアルロボットを制御（２）
-
-リアルロボットがある場合：シミュレーションロボットの関節操作をリアルロボットに同期させる。
-要するに「MuJoCoの標準UIからリアルロボットを遠隔操作する」体験ができます。
+次にRedis経由でのデータ交換を確認します：
 
 ```bash
 # ターミナル1: シミュレーション起動
 python merimujoco.py --redis redis-mgr-direct.json
+
+# ターミナル2: リアルタイム可視化（別ターミナルで）
+cd ../meridis
+python redis_plotter.py --redis-key meridis_sim_pub --display joint
 ```
 
+
+
+**✅ 成功確認:**
+- シミュレーションとグラフの両方が表示される
+- MuJoCo内でロボットを動かすとグラフにデータが反映される
+
+### 🤖 Step 3: シミュレーション→実機連携（実機がある場合）
+
+**事前準備:** [meridis/README.md - ネットワーク設定](../meridis/README.md#ネットワーク設定)を参照してネットワーク設定を確認してください。
+
 ```bash
-# ターミナル2: ブリッジ(Sim2Real)
+# ターミナル1: シミュレーション起動
+python merimujoco.py --redis redis-calc.json
+
+# ターミナル2: モーション生成（meridisディレクトリで）
+cd ../meridis
+python meridis_motion_calc.py
+
+# ターミナル3: 実機ブリッジ（meridisディレクトリで）
 python meridis_manager.py --mgr mgr_sim2real.json
 ```
 
 **✅ 成功確認:**
-- シミュレーションロボットが表示される
-- メニュー `Control`で任意の関節をL-Buttonドラッグ操作する
-- 同じ動きがリアルロボットでも再現される
+- シミュレーション内でロボットが動作
+- 同じ動きが実機でも再現される
 
-**⚠️ 重要：merimujoco 終了方法**  
-**ウィンドウ右上の「×」ボタン、または左メニュー `File`->`Quit`で終了してください。**
+### ❓ うまく動かない場合
 
-**⚠️ 重要：merimujoco以外の 終了方法**  
-**起動したターミナル内で、CTRL+Cで終了してください**
+**Redis接続エラー:** 
+→ [meridis/README.md - Redis動作確認](../meridis/README.md#redis-動作確認)をご確認ください
 
+**実機連携エラー:**  
+→ [meridis/README.md - ネットワーク設定](../meridis/README.md#ネットワーク設定)をご確認ください
 
-### 🤖 Step 5: リアルロボットの動きをシミュレーション上で再現
-
-リアルロボットがある場合：リアルロボットの関節の動きをシミュレーションロボットで再現できます。
-
-```bash
-# ターミナル1: シミュレーション起動
-python merimujoco.py --redis redis-mgr.json
-```
-
-```bash
-# ターミナル2: ブリッジ(Real2Sim)
-python meridis_manager.py --mgr mgr_real2sim.json
-```
-
-**✅ 成功確認:**
-- シミュレーションロボットが表示される
-- リアルロボットの各関節に触れて動かす
-- 同じ動きがシミュレーションロボットでも再現される
-
-**⚠️ 重要：merimujoco 終了方法**  
-**ウィンドウ右上の「×」ボタン、または左メニュー `File`->`Quit`で終了してください。**
-
-**⚠️ 重要：merimujoco以外の 終了方法**  
-**起動したターミナル内で、CTRL+Cで終了してください**
-
+**その他:** 
+→ [開発者向け情報](#開発者向け情報)で詳細なライブラリ使用法をご確認ください
 
 ---
-## 使い方
 
-### コマンド
-```bash
-# デフォルト設定で起動する場合
-python merimujoco.py
-```
+## 詳細設定
 
-**⚠️ 重要：merimujoco 終了方法**  
-**ウィンドウ右上の「×」ボタン、または左メニュー `File`->`Quit`で終了してください。**
+### 3. Redis設定ファイル
 
-### コマンドオプション
-- `--redis <ファイル名>`: Redis設定JSONファイルを指定（デフォルト: `redis.json`）
+Redis接続設定をJSONファイルで管理します。ファイルが存在しない場合はデフォルト値（127.0.0.1:6379）を使用します。
+
+#### 設定ファイルの種類
+
+プロジェクトには複数のRedis設定ファイルが用意されており、異なる制御システムとの連携に対応しています：
+
+- **redis.json**: デフォルト設定（マネージャーシステム用、`meridis_mgr_pub`）
+- **redis-console.json**: コンソール制御システム用（`meridis_console_pub`）
+- **redis-mcp.json**: MCPサーバー用（`meridis_mcp_pub`）
+- **redis-mgr.json**: マネージャーシステム用（`meridis_mgr_pub`）
+- **redis-mgr-direct.json**: MuJoCoビューアーでの関節操作をRedisに反映（マネージャーシステム用、`meridis_mgr_pub`、`joint_to_redis: true`）
 
 #### 設定ファイルの形式
-
-Redis接続設定を JSON ファイルで管理します。
-ファイルが存在しない場合は安全なデフォルト値（127.0.0.1:6379）を使用します。
 
 ```json
 {
@@ -261,15 +192,16 @@ Redis接続設定を JSON ファイルで管理します。
     "port": 6379
   },
   "redis_keys": {
-    "read": "meridis_mgr_pub",
+    "read": "meridis_console_pub",
     "write": "meridis_sim_pub"
   },
   "data_flow": {
-    "redis_to_joint": false,
-    "joint_to_redis": true
+    "redis_to_joint": true,
+    "joint_to_redis": false
   }
 }
 ```
+
 ##### 設定項目
 
 - **redis**: Redisサーバーの接続情報
@@ -282,37 +214,161 @@ Redis接続設定を JSON ファイルで管理します。
   - `redis_to_joint`: Redisから受信した値をMuJoCoの関節にセット (デフォルト: `true`)
   - `joint_to_redis`: MuJoCoの関節角度をRedisに送信 (デフォルト: `false`)
 
-##### 各設定ファイルの違い
+**注意**: `data_flow`設定は現在試験中の機能です。本番環境での使用前に十分なテストを行ってください。
 
-本リポジトリには、用途別に6個のJSON設定ファイルが用意されています。すべてのファイルで redis 接続設定（host: 127.0.0.1, port: 6379）は共通ですが、`redis_keys`と`data_flow`が異なります。
+各ファイルは異なる`read`キー（受信用）を使用し、同じ`write`キー（送信用）を共有することで、複数の制御システムからシミュレータを制御できます。
 
-| ファイル名 | read キー | write キー | redis_to_joint | joint_to_redis | 用途 |
-|-----------|----------|-----------|----------------|----------------|------|
-| [redis.json](redis.json) | `meridis_mgr_pub` | `meridis_sim_pub` | ❌ false | ✅ true | デフォルト設定 |
-| [redis-mgr-direct.json](redis-mgr-direct.json) | `meridis_mgr_pub` | `meridis_sim_pub` | ❌ false | ✅ true | Mujoco UI操作 |
-| [redis-mgr.json](redis-mgr.json) | `meridis_mgr_pub` | `meridis_sim_pub` | ✅ true | ❌ false | Sim2Real/Real2Sim（リアル←→シミュレーション） |
-| [redis-calc.json](redis-calc.json) | `meridis_calc_pub` | `meridis_sim_pub` | ✅ true | ✅ true | 動作生成プログラムとの連携（双方向） |
-| [redis-console.json](redis-console.json) | `meridis_console_pub` | `meridis_sim_pub` | ✅ true | ❌ false | コンソール入力からの制御【予約】 |
-| [redis-mcp.json](redis-mcp.json) | `meridis_mcp_pub` | `meridis_sim_pub` | ✅ true | ❌ false | MCPサーバーとの連携【予約】 |
+### コマンドラインオプション
+
+- `--redis <ファイル名>`: Redis設定JSONファイルを指定（デフォルト: `redis.json`）
+
+```bash
+# 例: コンソール用設定で起動
+python merimujoco.py --redis redis-console.json
+
+# 例: MCP用設定で起動
+python merimujoco.py --redis redis-mcp.json
+```
+
+データフローの制御（`redis_to_joint`, `joint_to_redis`）は、各Redis設定ファイルの`data_flow`ブロックで設定します。
 
 ---
-## 技術詳細
 
-### データフロー図
+## 技術詳細 📋
+
+### Redisキーの役割
+
+- **read キー** (`meridis_*_pub`) … 制御システムからシミュレーションに送信される指令データ（関節角度等）を格納するキー（読み取り専用）
+- **write キー** (`meridis_sim_pub`) … シミュレーションから制御システムに送信される状態データ（IMU、関節状態等）を格納するキー（書き込み専用）
+
+この2つのキーを通じて、制御システムとシミュレーション間でリアルタイムデータ交換を行います。
+
+### 関係図（Mermaid）
 
 ```mermaid
 flowchart LR
-  Controller[外部システム]
+  Controller[制御システム]
   Simulation[merimujoco.py]
   subgraph Redisサーバー
-    ReadKey["【read キー】<br/>meridis_mgr_pub/<br>meridis_calc_pub/<br>meridis_console_pub/<br> meridis_mcp_pub"]
-    WriteKey["【write キー】<br/>meridis_sim_pub"]
+    ReadKey["read キー（指令データ）<br/>meridis_console_pub / meridis_mcp_pub / meridis_mgr_pub"]
+    WriteKey["write キー（状態データ）<br/>meridis_sim_pub"]
   end
   Controller -- 書き込み/送信 --> ReadKey
   ReadKey -- 読み出し/取得 --> Simulation
   Simulation -- 書き込み/送信 --> WriteKey
   WriteKey -- 読み出し/取得 --> Controller
 ```
+
+## ファイル構成
+
+- `merimujoco.py` ... MuJoCoシミュレーションメイン・制御・Redis連携
+- `redis.json` ... Redis接続設定ファイル（デフォルト・マネージャー用）
+- `redis-console.json` ... Redis接続設定ファイル（コンソール制御用）
+- `redis-mcp.json` ... Redis接続設定ファイル（MCPサーバー用）
+- `redis-mgr.json` ... Redis接続設定ファイル（マネージャーシステム用）
+- `redis-mgr-direct.json` ... Redis接続設定ファイル（MuJoCoビューアーでの関節操作をRedisに反映・マネージャーシステム用）
+- `mjcf/scene.xml` ... ロボットモデル・シミュレーション環境定義（MJCF形式）
+- `urdf/scene.xml` ... ロボットモデル・シミュレーション環境定義（URDF形式）
+- `redis_receiver.py` ... Redisからのデータ受信モジュール
+- `redis_transfer.py` ... Redisへのデータ送信モジュール
+- `README.md` ... このファイル
+
+---
+
+## merimujoco.py
+
+- `merimujoco.py` は MuJoCo 物理エンジンを使用した3Dロボットシミュレーションシステムです。
+- Redis を介して外部制御システム（mcp-meridisなど）との連携を行います。
+- 高精度なIMUシミュレーション、関節制御、リアルタイムデータ交換を提供します。
+
+### 使い方
+
+```bash
+# デフォルト設定で起動
+python merimujoco.py
+
+# 特定のRedis設定を使用
+python merimujoco.py --redis redis-console.json
+
+# MCP用設定で起動（redis-mcp.jsonでdata_flowを設定）
+python merimujoco.py --redis redis-mcp.json
+```
+
+### コマンドラインオプション
+
+- `--redis <ファイル名>`: Redis設定JSONファイルを指定（デフォルト: `redis.json`）
+
+データフローの制御（`redis_to_joint`, `joint_to_redis`）は、各Redis設定ファイルの`data_flow`ブロックで設定します。
+
+### 設定ファイル
+
+### 設定ファイル
+
+Redis接続設定を JSON ファイルで管理します。ファイルが存在しない場合は安全なデフォルト値（127.0.0.1:6379）を使用します。
+
+#### 利用可能な設定ファイル
+
+- **redis.json**: デフォルト設定（`meridis_mgr_pub` → `meridis_sim_pub`）
+- **redis-console.json**: コンソール制御用（`meridis_console_pub` → `meridis_sim_pub`）
+- **redis-mcp.json**: MCPサーバー用（`meridis_mcp_pub` → `meridis_sim_pub`）
+- **redis-mgr.json**: マネージャー用（`meridis_mgr_pub` → `meridis_sim_pub`）
+
+#### 設定ファイル形式
+
+```json
+{
+  "redis": {
+    "host": "127.0.0.1",
+    "port": 6379
+  },
+  "redis_keys": {
+    "read": "meridis_console_pub",
+    "write": "meridis_sim_pub"
+  }
+}
+```
+
+### 動作
+
+- **起動時処理**: Redis設定ファイルを読み込み、MuJoCoモデル（scene.xml）をロード、ビューワーを起動します。
+- **物理シミュレーション**: 1ms間隔でMuJoCo物理演算を実行（重力、摩擦、関節動力学）
+- **制御スレッド**: 専用スレッドでRedis経由の指令受信・状態送信を高頻度実行
+- **IMU計算**: c_chest座標系でのロボット姿勢（Roll/Pitch/Yaw）、角速度、加速度を算出
+
+### シミュレーション機能
+
+#### 物理パラメータ
+- **重力**: -9.8 m/s² （Z軸方向）
+- **タイムステップ**: 0.001秒 （1ms間隔）
+- **積分器**: RK4（高精度・安定）
+- **関節減衰**: 5.0 （振動抑制）
+- **摩擦係数**: 静止摩擦 1.2、動摩擦 0.8、粘着摩擦 0.01
+
+#### IMUシミュレーション
+- **姿勢**: c_chest座標系のRoll/Pitch/Yaw角度（度）
+- **角速度**: 各軸回りの角速度（度/秒）
+- **加速度**: 重力ベクトルの座標変換による線形加速度（m/s²）
+
+#### 関節制御
+- **制御対象**: 主要関節（股関節、膝関節、足首関節、頭部、肩関節等）
+- **指令値**: Redisから受信した角度指令（度→ラジアン変換）
+- **制御方式**: 位置制御（PD制御相当）
+
+### データフロー
+
+```
+制御システム → Redis[read key] → merimujoco.py → MuJoCo物理演算 → IMU/関節状態 → Redis[write key] → 制御システム
+```
+
+- **read キー** (`meridis_*_pub`): 外部制御システムからの関節角度指令、制御コマンド
+- **write キー** (`meridis_sim_pub`): シミュレーション結果のIMUデータ、関節状態、システム応答
+
+### 特殊機能
+
+#### リセット機能
+- **条件**: Redis経由で `data[0] == 5556` を受信
+- **動作**: MuJoCoシミュレーション状態を初期化（mj_resetData）
+- **用途**: 制御実験の初期化、異常状態からの復旧
 
 #### 関節マッピング
 ##### joint_names[] と XMLファイルのjoint名
@@ -328,11 +384,6 @@ joint_names = [
     "r_hip_yaw", "r_hip_roll", "r_thigh_pitch", "r_knee_pitch", "r_ankle_pitch", "r_ankle_roll"
 ]
 ```
-### ファイルの種類
-
-
-
-
 ##### joint_to_meridis[] と meridis_sim_pub テーブル
 - **概要**: `joint_to_meridis` 辞書は、各関節名をMeridisデータ配列のインデックスと乗数にマッピングします。
 これにより、Redisから受信した関節角度データを適切に変換してMuJoCoの`data.ctrl`に適用できます。
@@ -377,11 +428,101 @@ joint_to_meridis = {
     "r_ankle_roll":     [71,-1]
 }
 ```
-### 特殊機能
 
-#### リセット機能
-- **条件**: Redis経由で `data[0] == 5556` を受信
-- **動作**: MuJoCoシミュレーション状態を初期化（mj_resetData）
-- **用途**: 制御実験の初期化、異常状態からの復旧
+### 注記
 
+- シミュレーション精度は物理パラメータ設定に依存します
+- Redis接続エラー時も安全にシミュレーションを継続します
+- 制御データの送受信は独立スレッドで実行され、シミュレーションループをブロックしません
+- IMU計算は胸部リンク（c_chest）の運動学的状態から高精度に算出されます
+- 関節角度の単位変換（度↔ラジアン）、座標系変換は自動処理されます
+- プログラム終了時にGLFWライブラリのクリーンアップを行い、エラーを回避します
 
+### 例
+
+```bash
+# デフォルト設定でシミュレーション起動
+python merimujoco.py
+
+# コンソール制御システム用設定で起動
+python merimujoco.py --redis redis-console.json
+
+# MCP制御システム用設定で起動
+python merimujoco.py --redis redis-mcp.json
+```
+
+実装の詳細については [merimujoco.py](merimujoco.py) を参照してください（関節マッピング、IMU計算、Redis連携、制御スレッドなど）。
+
+---
+
+## 開発者向け情報 🛠️
+
+merimujoco をベースとした独自ロボット制御システムの開発を行う際は、**meridis システム** の豊富なライブラリ群を活用することで、効率的な開発が可能です。
+
+### 📚 Meridis ライブラリリファレンス
+
+高度な制御システム開発では、以下のmeridisライブラリを参照してください：
+
+**🔧 コアライブラリ:**
+- **redis_transfer.py** - Redisへのデータ書き込み（制御指令送信）
+- **redis_receiver.py** - Redisからのデータ読み取り（センサーデータ受信）  
+- **meridis_manager.py** - Redis↔UDP双方向ブリッジ（高度な実機連携）
+
+**📊 監視・デバッグツール:**
+- **redis_plotter.py** - リアルタイム可視化（関節角度・足部位置）
+- **udp_sender.py** - UDP通信のテスト・デバッグ
+
+**⚙️ ユーティリティ:**
+- **create_meridis_keys.py** - Redis環境の初期化
+
+**📖 詳細ドキュメント:**  
+[meridis/README.md - ライブラリの動作を確認する](../meridis/README.md#ライブラリの動作を確認する)
+
+### 🎯 カスタマイズのポイント
+
+#### 1. 独自制御アルゴリズムの実装
+```python
+# 例: カスタム制御ループ
+from redis_transfer import RedisTransfer
+from redis_receiver import RedisReceiver
+
+# 制御指令をRedisに送信
+transfer = RedisTransfer(key="meridis_custom_pub")
+transfer.set_data(your_control_data)
+
+# シミュレーション結果を取得  
+receiver = RedisReceiver(key="meridis_sim_pub")
+sensor_data = receiver.get_data()
+```
+
+#### 2. 独自ロボットモデルの適用
+- **URDFファイル**: `urdf/` ディレクトリに新しいモデルを配置
+- **関節マッピング**: `merimujoco.py` の `joint_to_meridis` 辞書を変更
+- **物理パラメータ**: MJCFファイルの摩擦係数・慣性モーメント等を調整
+
+#### 3. リアルタイム性能の最適化
+- **制御周期**: Redis読み書きのタイムスパンを用途に応じて調整
+- **データフィルタリング**: 必要なデータのみを送受信してネットワーク負荷を軽減
+- **並列処理**: 複数のRedisキーを使った並列制御
+
+### 🔍 高度な開発パターン
+
+**シミュレーション駆動開発:**
+1. merimujoco で動作確認
+2. redis_plotter.py でデータ解析  
+3. パラメータ調整・最適化
+4. meridis_manager.py で実機検証
+
+**チーム開発:**
+- 個別のRedisキー（`meridis_dev1_pub` など）で独立作業
+- 共通のシミュレーション環境で統合テスト
+- redis_plotter.py でチーム内データ共有
+
+### 💡 トラブルシューティング
+
+開発中に問題が発生した場合は、以下のmeridisドキュメントが役立ちます：
+
+- **Redis接続問題:** [Redis動作確認](../meridis/README.md#redis-動作確認)
+- **実機連携問題:** [ネットワーク設定](../meridis/README.md#ネットワーク設定) 
+- **データフロー理解:** [ロボット動作を管理する](../meridis/README.md#ロボット動作を管理する)
+- **可視化・デバッグ:** [ライブラリの動作を確認する](../meridis/README.md#ライブラリの動作を確認する)
