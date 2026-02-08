@@ -2,9 +2,9 @@
 
 
 ---
-## 使い方
+# 仕様
 
-### コマンド
+## コマンド
 ```bash
 # デフォルト設定で起動する場合
 python merimujoco.py
@@ -13,12 +13,12 @@ python merimujoco.py
 **⚠️ 重要：merimujoco 終了方法**  
 **ウィンドウ右上の「×」ボタン、または左メニュー `File`->`Quit`で終了してください。**
 
-### コマンドオプション
+## コマンドオプション
 - `--redis <ファイル名>`: Redis設定JSONファイルを指定（デフォルト: `redis.json`）
 
 
 ---
-#### 設定ファイルの形式
+## 設定ファイルの形式
 
 Redis接続設定を JSON ファイルで管理します。
 ファイルが存在しない場合は安全なデフォルト値（127.0.0.1:6379）を使用します。
@@ -39,7 +39,7 @@ Redis接続設定を JSON ファイルで管理します。
   }
 }
 ```
-##### 設定項目
+### 設定項目
 
 - **redis**: Redisサーバーの接続情報
   - `host`: Redisサーバーのホスト名またはIPアドレス
@@ -51,7 +51,7 @@ Redis接続設定を JSON ファイルで管理します。
   - `redis_to_joint`: Redisから受信した値をMuJoCoの関節にセット (デフォルト: `true`)
   - `joint_to_redis`: MuJoCoの関節角度をRedisに送信 (デフォルト: `false`)
 
-##### 各設定ファイルの違い
+### 各設定ファイルの違い
 
 本リポジトリには、用途別に6個のJSON設定ファイルが用意されています。すべてのファイルで redis 接続設定（host: 127.0.0.1, port: 6379）は共通ですが、`redis_keys`と`data_flow`が異なります。
 
@@ -65,9 +65,9 @@ Redis接続設定を JSON ファイルで管理します。
 | [redis-mcp.json](redis-mcp.json) | `meridis_mcp_pub` | `meridis_sim_pub` | ✅ true | ❌ false | MCPサーバーとの連携【予告】 |
 
 ---
-## 技術詳細
+# 技術詳細
 
-### データフロー図
+## データフロー図
 
 ```mermaid
 flowchart LR
@@ -83,8 +83,8 @@ flowchart LR
   WriteKey -- 読み出し/取得 --> Controller
 ```
 
-#### 関節マッピング
-##### joint_names[] と XMLファイルのjoint名
+## 関節マッピング
+### joint_names[] と XMLファイルのjoint名
 - **概要**: `merimujoco.py` の `joint_names` リストは、MuJoCoモデルのactuator順序に基づいてインデックス付けされた関節名を定義しています。
 - **注意点**: 読み込む `roid1_mjcf.xml` のjoint名と `joint_names[]` が一致しない場合でも、MuJoCo の `data.ctrl` はモデルのactuator順序に基づいてインデックス付けされることから、`joint_names` リストの順序がXMLファイルのactuator順序と一致していれば、問題なく扱えます。
 - **推奨**: 可読性のためには、`joint_names[]` リストの関節名をXMLファイルのjoint名と一致させることを推奨します。
@@ -98,7 +98,7 @@ joint_names = [
 ]
 ```
 
-##### joint_to_meridis[] と meridis_sim_pub テーブル
+### joint_to_meridis[] と meridis_sim_pub テーブル
 - **概要**: `joint_to_meridis` 辞書は、各関節名をMeridisデータ配列のインデックスと乗数にマッピングします。
 これにより、Redisから受信した関節角度データを適切に変換してMuJoCoの`data.ctrl`に適用できます。
 - **構造**: 各エントリは `[インデックス, 乗数]` の形式です
@@ -142,9 +142,9 @@ joint_to_meridis = {
     "r_ankle_roll":     [71,-1]
 }
 ```
-### 特殊機能
+# 特殊機能
 
-#### リセット機能
+## リセット機能
 - **条件**: Redis経由で `data[0] == 5556` を受信
 - **動作**: MuJoCoシミュレーション状態を初期化（mj_resetData）
 - **用途**: 制御実験の初期化、異常状態からの復旧
