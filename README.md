@@ -258,7 +258,9 @@ python meridis_manager.py --mgr mgr_real2sim.json
 **起動したターミナル内で、CTRL+Cで終了してください**
 <BR>  
 おつかれさまでした！ これで基本的な動作確認はすべて完了です。  
-以下、研究開発を進めるための仕様などの参考資料に続きます。  
 
-[背景・目的・主な機能・用語集](README_concept.md)
-[仕様](README_advance.md)
+## 📚 さらに詳しく知りたい方へ
+研究開発を進めるための仕様などの参考資料に続きます。  
+
+- **[背景・目的・用語集を読む](README_concept.md)** - なぜmerimujoco?どんな世界がひろがる?
+- **[技術仕様を読む](README_advance.md)** - 設定ファイル詳細・カスタマイズ方法
