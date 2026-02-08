@@ -6,7 +6,7 @@ via Redis at real-time frequency.
 
 ## 背景
 
-- 2025年。AIの行動範囲はコンピュータの中だけでなく現実世界にも拡がりはじめました。とくに、身体を得て行動し現実世界に物理的に作用するようになったAIを「フィジカルAI(Physical AI)またはエンボディードAI(Embodied AI)」と呼びます。
+- 近年、AIの行動範囲はコンピュータの中だけでなく現実世界にも拡がりはじめました。とくに、身体を得て行動し現実世界に物理的に作用するようになったAIを、フィジカルAI(Physical AI)またはエンボディードAI(Embodied AI) と呼びます。
 - ロボットを現実世界で動かす前に、何度でも試行を繰り返し、自分と周囲環境を壊すことなく、安全に検証できる、シミュレーション環境の価値が高まっています。
 - **merimujoco**は、ロボットの動きをシミュレーションで確かめ、同じデータを使ってリアルロボットにもシームレスにつながる、そんな開発を目的としたツールです
 
@@ -29,7 +29,7 @@ via Redis at real-time frequency.
 
 本リポジトリの**merimujoco**は、物理シミュレーションエンジン`MuJoCo`を使用したロボットシミュレーションシステムです。
 
-merimujocoは外部システムとのデータ送受信において、柔軟なデータ構造かつ高速なインメモリデータベース`Redis`を使用する**meridis**モジュールとの連動で、**外部システム**との円滑な連携の実現を特長としています。
+高速なインメモリデータベース **Redis** の read/write キーを共通I/Fとして扱うことで、外部システムを差し替え可能にするための**meridis**モジュールを提供します。
 
 ![merimujoco](image/merimujoco.png)
 
@@ -57,7 +57,7 @@ merimujocoは外部システムとのデータ送受信において、柔軟な�
   MCPサーバーと連携することで、AIエージェントからの指令をトリガとして、シミュレーションロボットの制御データ・状態データを送受信できる
 
 - **リセット機能**  
-  与えるデータ先頭 data[0]=5556 とするとき、Mujocoのシミュレーション環境をリセットし初期条件に戻すことができる
+  与えるデータ先頭 data[0]=5556 とするとき、MuJoCoのシミュレーション環境をリセットし初期条件に戻すことができる
 
 - **マルチプラットフォーム**
   本プログラムは、Linux/WSL/Windows11/MacOS で動作確認済です。
@@ -109,18 +109,17 @@ pip install mujoco numpy redis
 
 ## このクイックスタートでできること
 
-- 🔰 シミュレーションだけ試したい人  
-  → Step1 まででOK
-
-- 🔧 外部システムの制御やデータ連携を理解したい人  
-  → Step2 まででOK
+- 🔰 シミュレーションと外部システム連携を試したい人  
+  → Step 1～2 を実施
 
 - 🤖 リアルロボットとつなぎたい人  
-  → Step3 を実施
+  → Step 3～5 を実施
 
-- 💡 LLM / AI エージェント開発者の方へ（予告）
-  → redis-mcp.json を使うことで、LLM から生成した制御指令をそのままシミュレーション・リアルに渡すことができます。
-  動作検証は実施済みですが公開にあたって紹介記事を制作中です。
+- 💡 AIエージェントを開発したい人（予告）
+  → AIエージェントとMCPサーバを組合せることで、Aが生成した制御指令をそのままシミュレーションまたはリアルのロボットに渡すことができます。
+  - `merimujoco.py`の設定ファイル `redis_ 
+  
+  歩行モーションを生成するMCPサーバーサンプルプログラムの公開に向けて紹介記事を制作中です。
 
 ---
 ### 🎯 Step 1: 基本動作確認（シミュレーションのみ）
@@ -150,8 +149,8 @@ python merimujoco.py
 ---
 ### 🔗 Step 2: 動作生成プログラムとの連携
 
-このステップでは、merimujoco と外部システムが「同じデータ構造・同じ周期」で接続できることを確認します。
-`calc_dance_motion.py`というダンスの動作生成プログラムを用意しました。
+このステップでは、merimujoco と外部システムが「関節角度の指令（read）と状態（write）を共通I/F扱いで接続できることを確認します。
+- `calc_dance_motion.py`というダンスの動作生成プログラムを用意しました。
 - このプログラムを改造すれば、歩行モーションなど数値計算結果をシミュレーション上で検証できます。
 
 
@@ -178,12 +177,12 @@ python calc_dance_motion.py
 
 
 ---
-### 🤖 Step 3: シミュレーションからリアルロボットを制御（１）
+### 🤖 Step 3: シミュレーションとリアルロボットを同期
 
 リアルロボットがある場合：シミュレーションロボットのダンスの動きをリアルロボットに同期させる。
 シミュレータとリアルのデジタルツインを体験してください。
 
-**⚠️ 重要：meridisn_manager.py を実行するときは [meridis マニュアル](https://github.com/holypong/meridis/blob/main/README.md)をよく読んでください**
+**⚠️ 重要：meridis_manager.py を実行するときは [meridis マニュアル](https://github.com/holypong/meridis/blob/main/README.md)をよく読んでください**
 - meridis の インストールディレクトリ下でうごかしてください
 - `network.json`のネットワーク設定を確認してください
 - `mgr_sim2real.json`のネットワーク設定を確認してください
@@ -216,7 +215,7 @@ python meridis_manager.py --mgr mgr_sim2real.json
 **起動したターミナル内で、CTRL+Cで終了してください**
 
 ---
-### 🤖 Step 4: シミュレーションからリアルロボットを制御（２）
+### 🤖 Step 4: シミュレーションからリアルロボットを操作
 
 リアルロボットがある場合：シミュレーションロボットの関節操作をリアルロボットに同期させる。
 要するに「MuJoCoの標準UIからリアルロボットを遠隔操作する」体験ができます。
@@ -329,11 +328,11 @@ Redis接続設定を JSON ファイルで管理します。
 | ファイル名 | read キー | write キー | redis_to_joint | joint_to_redis | 用途 |
 |-----------|----------|-----------|----------------|----------------|------|
 | [redis.json](redis.json) | `meridis_mgr_pub` | `meridis_sim_pub` | ❌ false | ✅ true | デフォルト設定 |
-| [redis-mgr-direct.json](redis-mgr-direct.json) | `meridis_mgr_pub` | `meridis_sim_pub` | ❌ false | ✅ true | Mujoco UI操作 |
+| [redis-mgr-direct.json](redis-mgr-direct.json) | `meridis_mgr_pub` | `meridis_sim_pub` | ❌ false | ✅ true | MuJoCo UI操作 |
 | [redis-mgr.json](redis-mgr.json) | `meridis_mgr_pub` | `meridis_sim_pub` | ✅ true | ❌ false | Sim2Real/Real2Sim（リアル←→シミュレーション） |
 | [redis-calc.json](redis-calc.json) | `meridis_calc_pub` | `meridis_sim_pub` | ✅ true | ✅ true | 動作生成プログラムとの連携（双方向） |
-| [redis-console.json](redis-console.json) | `meridis_console_pub` | `meridis_sim_pub` | ✅ true | ❌ false | コンソール入力からの制御【予約】 |
-| [redis-mcp.json](redis-mcp.json) | `meridis_mcp_pub` | `meridis_sim_pub` | ✅ true | ❌ false | MCPサーバーとの連携【予約】 |
+| [redis-console.json](redis-console.json) | `meridis_console_pub` | `meridis_sim_pub` | ✅ true | ❌ false | コンソール入力からの制御【予告】 |
+| [redis-mcp.json](redis-mcp.json) | `meridis_mcp_pub` | `meridis_sim_pub` | ✅ true | ❌ false | MCPサーバーとの連携【予告】 |
 
 ---
 ## 技術詳細
