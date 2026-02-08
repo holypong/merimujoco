@@ -3,7 +3,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 sample/
-test/
+test
 
 # C extensions
 *.so
