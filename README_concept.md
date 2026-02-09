@@ -83,14 +83,17 @@ Remote Dictionary Server の略。高速なインメモリ型データベース�
 
 **meridis（メリディス）**  
 ロボットシミュレータ と Redis を連携させ、シミュレーションと実機ロボット、AIエージェント等の外部システムをシームレスに接続するための補助ツール群。MuJoCo以外に、Genesis AI、IsaacSim への適用実績がある。`#Meridian計画`にてholypongが開発。
+https://github.com/holypong/meridis
 
--  **merimujoco（メリムジョコ）**
+-  **merimujoco（メリムジョコ）**<br>
 動作生成アルゴリズムをPythonで記述することが可能なプログラム。  
-論文研究をベースとした動作生成プログラムをシミュレーション上で再生し動作検証することができ、シミュレーターのリセット等も可能です。
+論文研究をベースとした動作生成プログラムをシミュレーション上で再生し動作検証することができ、シミュレーターのリセット等も可能です。<br>
+https://github.com/holypong/merimujoco
 
-- **Meridian（メリディアン）** (オプション)  
+- **Meridian（メリディアン）** (オプション)<br> 
 merimujocoからロボット実機を動かす際に必要となるオープンソースのシステム。
-専用ボードと専用ソフトで構成されます。**シミュレーターのみを使う場合はMeridianの準備は不要です**。。
+専用ボードと専用ソフトで構成されます。**シミュレーターのみを使う場合はMeridianの準備は不要です**。<br>
+[そもそもMeridian計画とは？](https://note.com/ninagawa123/n/ncfde7a6fc835)
 
 **MCP（Model Context Protocol）**  
 AIエージェントが外部ツールやデータソースと標準的な方法で連携するためのプロトコル。本プロジェクトでは、AIエージェントからロボット制御を実現するために活用（予告）。
