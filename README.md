@@ -6,7 +6,7 @@
 
 ---
 
-# 概要
+## 概要
 
 本リポジトリの**merimujoco**は、物理シミュレーションエンジン`MuJoCo`を使用したロボットシミュレーションシステムです。
 
@@ -37,13 +37,13 @@ merimujocoからロボット実機を動かす際に必要となるオープン�
 <BR>  
 
 ---
-# 対応機種
+## 対応機種
 
 - Linux/WSL/Windows11/MacOS で動作確認済
 <BR>  
 
 ---
-# インストール
+## インストール
 
 merimujoco は Redis経由でデータ処理を行うため、最初に**Redis**および **meridisモジュール** のセットアップを行います。  
 <BR>  
@@ -62,11 +62,11 @@ merimujoco は Redis経由でデータ処理を行うため、最初に**Redis**
 - ✅ ネットワーク設定の確認
 <BR>  
 
-##  STEP 2: MuJoCo および merimujoco のインストール
+### STEP 2: MuJoCo および merimujoco のインストール
 
 meridis のセットアップが完了したら、MuJoCoおよびmerimujoco をインストールします。
 
-### 必要なパッケージのインストール
+#### 必要なパッケージのインストール
 
 Python 3.11以上の仮想環境を作成し、下記のパッケージをインストールします。
 
@@ -78,7 +78,7 @@ pip install mujoco numpy redis
 <BR>  
 ---
 
-# 動作確認
+## 動作確認
 
 本システムの核心は、インメモリデータベース Redisの read/write キーを共通I/F扱いにすることで、 Sim/Real/AI をほぼ同様の手順でシームレスにつなぐことにあります。
 
@@ -90,7 +90,7 @@ pip install mujoco numpy redis
 <BR>  
   
 ---
-## Quick Start 1 : 基本動作確認
+### Quick Start 1 : 基本動作確認
 
 まず merimujoco 単体での動作を確認します。
 
@@ -118,7 +118,7 @@ python merimujoco.py
 <BR>  
   
 ---  
-## Quick Start 2 : 動作生成プログラムとの連携
+### Quick Start 2 : 動作生成プログラムとの連携
 
 このステップでは、merimujoco と外部システムが、関節角度の指令（read）と状態（write）を共通I/F扱いで接続できることを確認します。
 
@@ -154,7 +154,7 @@ Meridianを搭載したロボットが手元にない場合は、ここで動作
 <BR>  
   
 ---  
-## Quick Start 3 : シミュレーターとロボット実機の同期
+### Quick Start 3 : シミュレーターとロボット実機の同期
 
 Meridianを搭載したロボット実機がある場合、シミュレーションロボットのダンスの動きをロボット実機に同期させることができます。  
 [そもそもMeridian計画とは？](https://note.com/ninagawa123/n/ncfde7a6fc835)
@@ -202,7 +202,7 @@ python meridis_manager.py --mgr mgr_sim2real.json
 <BR>  
   
 ------  
-## Quick Start 4 : シミュレーションからロボット実機を操作
+### Quick Start 4 : シミュレーションからロボット実機を操作
 
 Meridianを搭載したロボット実機がある場合、シミュレーションロボットの関節操作をロボット実機に同期させことができます。
 
@@ -234,7 +234,7 @@ python meridis_manager.py --mgr mgr_sim2real.json
 <BR>  
   
 ---
-## Quick Start 5 : ロボット実機の動きをシミュレーション上で再現
+### Quick Start 5 : ロボット実機の動きをシミュレーション上で再現
 
 Meridianを搭載したロボット実機がある場合、ロボット実機の関節の動きをシミュレーション上のロボットで再現できます。
 
