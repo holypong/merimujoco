@@ -10,8 +10,6 @@ import signal
 import sys
 import argparse
 
-import numpy as np
-import time
 import math
 import json
 
@@ -29,23 +27,24 @@ MSG_SIZE = 90                   # Meridim配列の長さ
 CMD_VEL_GAIN = 1.0              # cmd_velのゲイン (0~1)
 FLG_SET_RCVD = True             # Redisからのデータ受信フラグ
 FLG_CREATE_CTRL = False          # 制御信号作成フラグ
-FLG_SET_SNDD = True             # Redisへのデータ送信フラグ
+FLG_SET_SEND = True             # Redisへのデータ送信フラグ
 FLG_RESET_REQUEST = False       # リセット要求フラグ
 FLG_REDIS_TO_JOINT = True        # Redisから受信した値を関節にセットするフラグ
 FLG_JOINT_TO_REDIS = False       # 関節角度をRedisに送信するフラグ
 
+MASTER_CMD_RESET = 5556     # リセットコマンド番号
+
 viewer = None  # MuJoCo viewer object
 
-MOT_START_FRAME = 200   # 開始フレーム
 MOT_START_TIME = 1.0  # 開始時間
 
 # Redisサーバー設定（デフォルト値）
 REDIS_HOST = "127.0.0.1"
 REDIS_PORT = 6379
-REDIS_KEY_READ = "meridis2"
-REDIS_KEY_WRITE = "meridis"
+REDIS_KEY_READ = "meridis_calc_pub"
+REDIS_KEY_WRITE = "meridis_sim_pub"
 
-def load_redis_config(json_file="redis.json"):
+def load_redis_config(json_file: str ="redis.json"):
     """Redis設定をJSONファイルから読み込む"""
     global REDIS_HOST, REDIS_PORT, REDIS_KEY_READ, REDIS_KEY_WRITE
     global FLG_REDIS_TO_JOINT, FLG_JOINT_TO_REDIS
@@ -184,7 +183,7 @@ redis_receiver = RedisReceiver(host=REDIS_HOST, port=REDIS_PORT, redis_key=REDIS
 
 total_frames = 0    # 全体のフレーム数
 elapsed = 0.0       # 経過時間
-start_time = 0.0    # 開始時間
+#start_time = 0.0   # 開始時間（メインループで設定）
 line_vel_x = 0.0    # 前進速度
 line_vel_y = 0.0    # 左右速度
 ang_vel_z = 0.0     # 旋回速度
@@ -256,7 +255,7 @@ def motor_controller_thread():
                     # データの更新
                     #print(f"rcv data: {rcv_data}") # meridian -> redis データを確認
 
-                    if rcv_data[0] == 5556:
+                    if rcv_data[0] == MASTER_CMD_RESET:
                         # リセット要求フラグを立てる（メインループで実行）
                         print(f"[motor_controller_thread] mujoco reset request {rcv_data[0]}")
                         FLG_RESET_REQUEST = True
@@ -347,7 +346,7 @@ def motor_controller_thread():
                 print(f"mdata: {mdata}")
 
             # Redis にデータを送信
-            if FLG_SET_SNDD and elapsed >= MOT_START_TIME:  # データ送信フラグが立っていて、開始時間を超えたら
+            if FLG_SET_SEND and elapsed >= MOT_START_TIME:  # データ送信フラグが立っていて、開始時間を超えたら
 
                 # --- c_chestのIMU計算 (Redis送信直前) ---
                 # 姿勢
