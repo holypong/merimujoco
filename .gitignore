@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 sample/
 test
+urdf/
 
 # C extensions
 *.so
