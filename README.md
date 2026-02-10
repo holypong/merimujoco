@@ -82,7 +82,7 @@ pip install mujoco numpy redis
 
 本システムの核心は、インメモリデータベース Redisの read/write キーを共通I/F扱いにすることで、 Sim/Real/AI をほぼ同様の手順でシームレスにつなぐことにあります。
 
-善術のセットアップ完了後、以下の順に基本的な動作確認を行なってください。  
+前述のセットアップ完了後、以下の順に基本的な動作確認を行なってください。  
 
 - Quick Start 1,2 : PCのみで動作可能なテストです。  
 - Quick Start 3,4,5 : Meridian搭載のロボット実機を用いた動作テストです。  
@@ -96,7 +96,7 @@ pip install mujoco numpy redis
 
 **Quick Start 1 では、ターミナルを1つ使用します。**
 
-`meriumujo`をインストールしたディレクトリで作業します
+`merimujoco`をインストールしたディレクトリで作業します
 ```bash
 # デフォルト設定で起動テスト
 python merimujoco.py
@@ -130,7 +130,7 @@ python merimujoco.py
 
 **Quick Start 2 では、ターミナルを2つ使用します。**
 
-`meriumujo`をインストールしたディレクトリで作業します
+`merimujoco`をインストールしたディレクトリで作業します
 ```bash
 # ターミナル1: シミュレーション起動
 python merimujoco.py --redis redis-calc.json
@@ -176,7 +176,7 @@ Meridianを搭載したロボット実機がある場合、シミュレーショ
 
 **Quick Start 3 では、ターミナルを3つ使用します。**
 
-`meriumujo`をインストールしたディレクトリで作業します
+`merimujoco`をインストールしたディレクトリで作業します
 ```bash
 # ターミナル1: シミュレーション起動
 python merimujoco.py --redis redis-calc.json
@@ -226,7 +226,7 @@ Meridianを搭載したロボット実機がある場合、シミュレーショ
 
 **Quick Start 4 では、ターミナルを2つ使用します。**
 
-`meriumujo`をインストールしたディレクトリで作業します
+`merimujoco`をインストールしたディレクトリで作業します
 ```bash
 # ターミナル1: シミュレーション起動
 python merimujoco.py --redis redis-mgr-direct.json
@@ -262,7 +262,7 @@ Meridianを搭載したロボット実機がある場合、ロボット実機の
 
 **Quick Start 5 では、ターミナルを2つ使用します。**
 
-`meriumujo`をインストールしたディレクトリで作業します
+`merimujoco`をインストールしたディレクトリで作業します
 ```bash
 # ターミナル1: シミュレーション起動
 python merimujoco.py --redis redis-mgr.json
@@ -293,7 +293,7 @@ python meridis_manager.py --mgr mgr_real2sim.json
 おつかれさまでした！ これで基本的な動作確認はすべて完了です。  
 
 ## 📚 さらに詳しく知りたい方へ
-研究開発を進めるための仕様などの参考資料に続きます。  
+研究開発・エンジニアリングを進めるための仕様などの参考資料に続きます。  
 
 - **[背景・目的・用語集を読む](README_concept.md)** - なぜmerimujoco?どんな世界がひろがる?
 - **[技術仕様を読む](README_advance.md)** - コマンド・設定ファイル詳細・カスタマイズ方法
