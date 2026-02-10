@@ -94,6 +94,9 @@ pip install mujoco numpy redis
 
 まず merimujoco 単体での動作を確認します。
 
+**Quick Start 1 では、ターミナルを1つ使用します。**
+
+`meriumujo`をインストールしたディレクトリで作業します
 ```bash
 # デフォルト設定で起動テスト
 python merimujoco.py
@@ -125,6 +128,9 @@ python merimujoco.py
 - `calc_dance_motion.py`というダンスの動作生成プログラムを用意しました。
 - このプログラムを改造すれば、歩行モーションなど数値計算結果をシミュレーション上で検証できます。
 
+**Quick Start 2 では、ターミナルを2つ使用します。**
+
+`meriumujo`をインストールしたディレクトリで作業します
 ```bash
 # ターミナル1: シミュレーション起動
 python merimujoco.py --redis redis-calc.json
@@ -145,7 +151,7 @@ python calc_dance_motion.py
 
 **ウィンドウ右上の「×」ボタン、または左メニュー `File`->`Quit`で終了してください。**
 
-**⚠️ 重要：merimujoco以外の 終了方法**
+**⚠️ 重要：calc_dance_motion.py 終了方法**
 
 **起動したターミナル内で、CTRL+Cで終了してください**　　
 <BR>　　
@@ -168,18 +174,22 @@ Meridianを搭載したロボット実機がある場合、シミュレーショ
 - network.json`のネットワーク設定を確認してください
 - mgr_sim2real.json`のネットワーク設定を確認してください
 
+**Quick Start 3 では、ターミナルを3つ使用します。**
+
+`meriumujo`をインストールしたディレクトリで作業します
 ```bash
 # ターミナル1: シミュレーション起動
 python merimujoco.py --redis redis-calc.json
 ```
 
 ```bash
-# ターミナル2: モーション生成
-python meridis_motion_calc.py
+# ターミナル2: 別ターミナルでダンスモーションを作成する
+python calc_dance_motion.py
 ```
 
+`meridis`をインストールしたディレクトリで作業します
 ```bash
-# ターミナル3: ブリッジ(Sim2Real)
+# ターミナル3: ブリッジをSim2Realモードで起動
 python meridis_manager.py --mgr mgr_sim2real.json
 ```
 
@@ -195,9 +205,15 @@ python meridis_manager.py --mgr mgr_sim2real.json
 
 **ウィンドウ右上の「×」ボタン、または左メニュー `File`->`Quit`で終了してください。**
 
-**⚠️ 重要：merimujoco以外の 終了方法**
+**⚠️ 重要：calc_dance_motion.py の 終了方法**
+
+**起動したターミナル内で、CTRL+Cで終了してください。**<br>
+**以降、calc_dance_motion.py は使用しないのでターミナルを閉じていただいて大丈夫です。**  
+
+**⚠️ 重要：meridis_manager.py の 終了方法**
 
 **起動したターミナル内で、CTRL+Cで終了してください**  
+
 
 <BR>  
   
@@ -208,13 +224,17 @@ Meridianを搭載したロボット実機がある場合、シミュレーショ
 
 ここでは、MuJoCoの標準UIからロボット実機を遠隔操作できることを確認します。
 
+**Quick Start 4 では、ターミナルを2つ使用します。**
+
+`meriumujo`をインストールしたディレクトリで作業します
 ```bash
 # ターミナル1: シミュレーション起動
 python merimujoco.py --redis redis-mgr-direct.json
 ```
 
+`meridis`をインストールしたディレクトリで作業します
 ```bash
-# ターミナル2: ブリッジ(Sim2Real)
+# ターミナル2: ブリッジをSim2Realモードで起動
 python meridis_manager.py --mgr mgr_sim2real.json
 ```
 
@@ -227,9 +247,11 @@ python meridis_manager.py --mgr mgr_sim2real.json
 - 同じ動きがロボット実機でも再現される
 
 **⚠️ 重要：merimujoco 終了方法**
+
 **ウィンドウ右上の「×」ボタン、または左メニュー `File`->`Quit`で終了してください。**
 
-**⚠️ 重要：merimujoco以外の 終了方法**
+**⚠️ 重要：meridis_manager.py 終了方法**
+
 **起動したターミナル内で、CTRL+Cで終了してください**
 <BR>  
   
@@ -238,13 +260,17 @@ python meridis_manager.py --mgr mgr_sim2real.json
 
 Meridianを搭載したロボット実機がある場合、ロボット実機の関節の動きをシミュレーション上のロボットで再現できます。
 
+**Quick Start 5 では、ターミナルを2つ使用します。**
+
+`meriumujo`をインストールしたディレクトリで作業します
 ```bash
 # ターミナル1: シミュレーション起動
 python merimujoco.py --redis redis-mgr.json
 ```
 
+`meridis`をインストールしたディレクトリで作業します
 ```bash
-# ターミナル2: ブリッジ(Real2Sim)
+# ターミナル2: ブリッジをReal2simモードで起動
 python meridis_manager.py --mgr mgr_real2sim.json
 ```
 
@@ -257,9 +283,11 @@ python meridis_manager.py --mgr mgr_real2sim.json
 - 同じ動きがシミュレーションロボットでも再現される
 
 **⚠️ 重要：merimujoco 終了方法**
+
 **ウィンドウ右上の「×」ボタン、または左メニュー `File`->`Quit`で終了してください。**
 
-**⚠️ 重要：merimujoco以外の 終了方法**
+**⚠️ 重要：meridis_manager.py 終了方法**
+
 **起動したターミナル内で、CTRL+Cで終了してください**
 <BR>  
 おつかれさまでした！ これで基本的な動作確認はすべて完了です。  
