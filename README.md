@@ -95,7 +95,7 @@ pip install mujoco numpy redis
 
 まず merimujoco 単体での動作を確認します。
 
-**Quick Start 1 では、ターミナルを1つ使用します。**
+**Quick Start 1 では、ターミナルを1つ使用します。**<br>
 **（別途、Redis-Serverを動かしているターミナルは常に開いている状態です）**
 
 `merimujoco`をインストールしたディレクトリで作業します
@@ -130,7 +130,7 @@ python merimujoco.py
 - `calc_dance_motion.py`というダンスの動作生成プログラムを用意しました。
 - このプログラムを改造すれば、歩行モーションなど数値計算結果をシミュレーション上で検証できます。
 
-**Quick Start 2 では、ターミナルを2つ使用します。**
+**Quick Start 2 では、ターミナルを2つ使用します。**<br>
 **（別途、Redis-Serverを動かしているターミナルは常に開いている状態です）**
 
 `merimujoco`をインストールしたディレクトリで作業します
@@ -175,7 +175,7 @@ Meridianを搭載したロボット実機がある場合、シミュレーショ
 - network.json`のネットワーク設定を確認してください
 - mgr_sim2real.json`のネットワーク設定を確認してください
 
-**Quick Start 3 では、ターミナルを3つ使用します。**
+**Quick Start 3 では、ターミナルを3つ使用します。**<br>
 **（別途、Redis-Serverを動かしているターミナルは常に開いている状態です）**
 
 `merimujoco`をインストールしたディレクトリで作業します
@@ -226,7 +226,7 @@ Meridianを搭載したロボット実機がある場合、シミュレーショ
 
 ここでは、MuJoCoの標準UIからロボット実機を遠隔操作できることを確認します。
 
-**Quick Start 4 では、ターミナルを2つ使用します。**
+**Quick Start 4 では、ターミナルを2つ使用します。**<br>
 **（別途、Redis-Serverを動かしているターミナルは常に開いている状態です）**
 
 `merimujoco`をインストールしたディレクトリで作業します
@@ -263,7 +263,7 @@ python meridis_manager.py --mgr mgr_sim2real.json
 
 Meridianを搭載したロボット実機がある場合、ロボット実機の関節の動きをシミュレーション上のロボットで再現できます。
 
-**Quick Start 5 では、ターミナルを2つ使用します。**
+**Quick Start 5 では、ターミナルを2つ使用します。**<br>
 **（別途、Redis-Serverを動かしているターミナルは常に開いている状態です）**
 
 `merimujoco`をインストールしたディレクトリで作業します
