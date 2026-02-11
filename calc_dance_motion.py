@@ -2,67 +2,77 @@ import numpy as np
 import time
 import argparse
 import sys
+import logging
 from redis_transfer import RedisTransfer
 
-# 20260208 calc_dance_motion.py 新規作成
-# ロボットの全身をサインカーブで動かすダンスモーションをRedisに送信
+# Logger configuration (INFO level, console output only)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    datefmt='%H:%M:%S',
+    handlers=[logging.StreamHandler()]
+)
+logger = logging.getLogger(__name__)
+
+# 20260208 calc_dance_motion.py created
+# Send full-body dance motion with sine curve to Redis
 
 REDIS_HOST = 'localhost'
 REDIS_PORT = 6379
-REDIS_KEY = 'meridis_calc_pub'  # 計算結果を書き込むキー
+REDIS_KEY = 'meridis_calc_pub'  # Key to write calculation results
 
 class DanceMotion:
     def __init__(self, host=REDIS_HOST, port=REDIS_PORT, redis_key=REDIS_KEY):
-        """ダンスモーション生成クラス
+        """Dance motion generator class
         
         Args:
-            host (str): Redisサーバーのホスト名
-            port (int): Redisサーバーのポート番号
-            redis_key (str): データを書き込むRedisキー
+            host (str): Redis server hostname
+            port (int): Redis server port number
+            redis_key (str): Redis key to write data
         """
         self.redis_transfer = RedisTransfer(host=host, port=port, redis_key=redis_key)
-        self.x = 0.0  # サインカーブ用の変数
-        self.meridis_motion = [0.0] * 90  # 90要素のモーションデータ
+        self.x = 0.0  # Variable for sine curve
+        self.meridis_motion = [0.0] * 90  # 90-element motion data
         
     def calculate_motion(self):
-        """サインカーブで全身をくねらせるダンスモーションを計算"""
-        # 初期化
+        """Calculate dance motion with sine curve for full-body movement"""
+        # Initialize
         self.meridis_motion = [0.0] * 90
         
-        # サインカーブで全身をくねらせる様にダンス
-        self.meridis_motion[21] = -int(np.sin(self.x) * 30)          # 頭ヨー
-        self.meridis_motion[51] = int(np.sin(self.x) * 20)         # 腰ヨー
+        # Dance motion with sine curve for full-body wiggling
+        self.meridis_motion[21] = -int(np.sin(self.x) * 30)             # Head yaw
+        self.meridis_motion[51] = int(np.sin(self.x) * 20)              # Waist yaw
 
-        self.meridis_motion[23] = int(np.sin(self.x) * 20)     # 左肩ピッチ
-        self.meridis_motion[25] = -int(np.sin(self.x * 2) * 10) + 30  # 左肩ロール
-        self.meridis_motion[27] = int(np.sin(self.x) * 10) + 10     # 左肘ヨー
-        self.meridis_motion[29] = int(np.sin(self.x) * 45) - 45     # 左肘ピッチ
-        self.meridis_motion[31] = int(np.sin(self.x) * 5)           # 左股ヨー
+        self.meridis_motion[23] = int(np.sin(self.x) * 20)              # Left shoulder pitch
+        self.meridis_motion[25] = -int(np.sin(self.x * 2) * 10) + 30    # Left shoulder roll
+        self.meridis_motion[27] = int(np.sin(self.x) * 10) + 10         # Left elbow yaw
+        self.meridis_motion[29] = int(np.sin(self.x) * 45) - 45         # Left elbow pitch
+        self.meridis_motion[31] = int(np.sin(self.x) * 5)               # Left hip yaw
 
-        self.meridis_motion[53] = -int(np.sin(self.x) * 20)    # 右肩ピッチ
-        self.meridis_motion[55] = -int(np.sin(self.x * 2) * 10) + 30  # 右肩ロール
-        self.meridis_motion[57] = -int(np.sin(self.x) * 10) + 10    # 右肘ヨー
-        self.meridis_motion[59] = -int(np.sin(self.x) * 45) - 45    # 右肘ピッチ
-        self.meridis_motion[61] = -int(np.sin(self.x) * 5)          # 右股ヨー
+        self.meridis_motion[53] = -int(np.sin(self.x) * 20)             # Right shoulder pitch
+        self.meridis_motion[55] = -int(np.sin(self.x * 2) * 10) + 30    # Right shoulder roll
+        self.meridis_motion[57] = -int(np.sin(self.x) * 10) + 10        # Right elbow yaw
+        self.meridis_motion[59] = -int(np.sin(self.x) * 45) - 45        # Right elbow pitch
+        self.meridis_motion[61] = -int(np.sin(self.x) * 5)              # Right hip yaw
 
-        self.meridis_motion[33] = -int(np.sin(self.x) * 5)          # 左股ロール
-        self.meridis_motion[35] = int(np.sin(self.x * 2) * 5) - 5      # 左股ピッチ
-        self.meridis_motion[37] = -int(np.sin(self.x * 2) * 10) + 10    # 左膝ピッチ
-        self.meridis_motion[39] = int(np.sin(self.x * 2) * 5) - 5      # 左足首ピッチ
-        self.meridis_motion[41] = int(np.sin(self.x) * 5)           # 左足首ロール
+        self.meridis_motion[33] = -int(np.sin(self.x) * 5)              # Left hip roll
+        self.meridis_motion[35] = int(np.sin(self.x * 2) * 5) - 5       # Left hip pitch
+        self.meridis_motion[37] = -int(np.sin(self.x * 2) * 10) + 10    # Left knee pitch
+        self.meridis_motion[39] = int(np.sin(self.x * 2) * 5) - 5       # Left ankle pitch
+        self.meridis_motion[41] = int(np.sin(self.x) * 5)               # Left ankle roll
 
-        self.meridis_motion[63] = int(np.sin(self.x) * 5)           # 右股ロール
-        self.meridis_motion[65] = -int(np.sin(self.x * 2) * 5) - 5  # 右股ピッチ
-        self.meridis_motion[67] = int(np.sin(self.x * 2) * 10) + 10      # 右膝ピッチ
-        self.meridis_motion[69] = -int(np.sin(self.x * 2) * 5) - 5  # 右足首ピッチ
-        self.meridis_motion[71] = -int(np.sin(self.x) * 5)          # 右足首ロール
+        self.meridis_motion[63] = int(np.sin(self.x) * 5)               # Right hip roll
+        self.meridis_motion[65] = -int(np.sin(self.x * 2) * 5) - 5      # Right hip pitch
+        self.meridis_motion[67] = int(np.sin(self.x * 2) * 10) + 10     # Right knee pitch
+        self.meridis_motion[69] = -int(np.sin(self.x * 2) * 5) - 5      # Right ankle pitch
+        self.meridis_motion[71] = -int(np.sin(self.x) * 5)              # Right ankle roll
         
         return self.meridis_motion
     
     def send_motion(self):
-        """計算したモーションデータをRedisに送信"""
+        """Send calculated motion data to Redis"""
         if not self.redis_transfer.is_connected:
-            print("[Error] Redisに接続されていません")
+            logger.error("Not connected to Redis")
             return False
         
         motion_data = self.calculate_motion()
@@ -70,93 +80,93 @@ class DanceMotion:
         return True
     
     def update_x(self, increment=0.05):
-        """サインカーブ用の変数xを更新
+        """Update x variable for sine curve
         
         Args:
-            increment (float): xの増分値
+            increment (float): Increment value for x
         """
         self.x += increment
         if self.x > 2 * np.pi:
             self.x -= 2 * np.pi
     
     def run(self, duration=None, frequency=50):
-        """ダンスモーションを継続的に送信
+        """Continuously send dance motion
         
         Args:
-            duration (float, optional): 実行時間（秒）。Noneの場合は無限ループ
-            frequency (int): 送信頻度（Hz）
+            duration (float, optional): Execution duration in seconds. None for infinite loop
+            frequency (int): Transmission frequency in Hz
         """
         interval = 1.0 / frequency
         start_time = time.time()
         loop_count = 0
         
-        print(f"ダンスモーション送信開始 (キー: {self.redis_transfer.redis_key}, 頻度: {frequency}Hz)")
+        logger.info(f"Dance motion transmission started (Key: {self.redis_transfer.redis_key}, Frequency: {frequency}Hz)")
         if duration:
-            print(f"実行時間: {duration}秒")
+            logger.info(f"Duration: {duration}s")
         else:
-            print("実行時間: 無制限 (Ctrl+Cで停止)")
+            logger.info("Duration: Unlimited (Press Ctrl+C to stop)")
         
         try:
             while True:
                 loop_start = time.time()
                 
-                # モーション計算と送信
+                # Motion calculation and transmission
                 if self.send_motion():
                     loop_count += 1
-                    if loop_count % (frequency * 5) == 0:  # 5秒ごとに進捗表示
+                    if loop_count % (frequency * 5) == 0:  # Progress display every 5 seconds
                         elapsed = time.time() - start_time
-                        print(f"経過時間: {elapsed:.1f}秒, ループ回数: {loop_count}, x値: {self.x:.2f}")
+                        logger.info(f"Elapsed: {elapsed:.1f}s, Loops: {loop_count}")
                 
-                # xを更新
+                # Update x
                 self.update_x(increment=0.05)
                 
-                # 終了判定
+                # Check termination
                 if duration and (time.time() - start_time) >= duration:
-                    print(f"\n指定時間({duration}秒)が経過しました")
+                    logger.info(f"Specified duration ({duration}s) elapsed")
                     break
                 
-                # 次のループまで待機
+                # Wait until next loop
                 elapsed = time.time() - loop_start
                 sleep_time = max(0, interval - elapsed)
                 if sleep_time > 0:
                     time.sleep(sleep_time)
                     
         except KeyboardInterrupt:
-            print("\n\nユーザーによって停止されました (Ctrl+C)")
+            logger.info("Stopped by user (Ctrl+C)")
         finally:
-            print(f"総ループ回数: {loop_count}")
-            print(f"総実行時間: {time.time() - start_time:.1f}秒")
+            logger.info(f"Total runtime: {time.time() - start_time:.1f}s")
+            logger.info(f"Total loops: {loop_count}")
             self.redis_transfer.close()
 
 
 def main():
-    """メイン関数"""
+    """Main function"""
     parser = argparse.ArgumentParser(
-        description='ロボットの全身ダンスモーションをRedisに送信するプログラム'
+        description='Send full-body dance motion to Redis for robot control'
     )
     parser.add_argument('--host', default=REDIS_HOST, 
-                       help=f'Redisサーバーのホスト名 (デフォルト: {REDIS_HOST})')
+                       help=f'Redis server hostname (default: {REDIS_HOST})')
     parser.add_argument('--port', type=int, default=REDIS_PORT, 
-                       help=f'Redisサーバーのポート番号 (デフォルト: {REDIS_PORT})')
+                       help=f'Redis server port number (default: {REDIS_PORT})')
     parser.add_argument('--key', default=REDIS_KEY, 
-                       help=f'書き込むRedisキー (デフォルト: {REDIS_KEY})')
+                       help=f'Redis key to write (default: {REDIS_KEY})')
     parser.add_argument('--duration', type=float, default=None, 
-                       help='実行時間（秒）。指定しない場合は無限ループ')
+                       help='Execution duration in seconds. If not specified, runs indefinitely')
     parser.add_argument('--frequency', type=int, default=50, 
-                       help='送信頻度（Hz）(デフォルト: 50Hz)')
+                       help='Transmission frequency in Hz (default: 50Hz)')
     
     args = parser.parse_args()
     
-    # DanceMotionインスタンスを作成
+    # Create DanceMotion instance
     dance = DanceMotion(host=args.host, port=args.port, redis_key=args.key)
     
-    # Redis接続確認
+    # Check Redis connection
     if not dance.redis_transfer.check_connection():
-        print(f"[Error] Redisサーバー {args.host}:{args.port} に接続できませんでした")
+        logger.error(f"Failed to connect to Redis server {args.host}:{args.port}")
         dance.redis_transfer.close()
         sys.exit(1)
     
-    # ダンスモーション実行
+    # Execute dance motion
     dance.run(duration=args.duration, frequency=args.frequency)
 
 
