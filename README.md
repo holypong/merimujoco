@@ -48,7 +48,7 @@ merimujocoからロボット実機を動かす際に必要となるオープン�
 merimujoco は Redis経由でデータ処理を行うため、最初に**Redis**および **meridisモジュール** のセットアップを行います。  
 <BR>  
 
-## STEP 1:  Redis および meridisモジュール のセットアップ
+### STEP 1:  Redis および meridisモジュール のセットアップ
 
 
 [meridis マニュアル](https://github.com/holypong/meridis/blob/main/README.md)
@@ -73,9 +73,9 @@ Python 3.11以上の仮想環境を作成し、下記のパッケージをイン
 ```bash
 pip install mujoco numpy redis
 ```
-  
+
 以上でインストールは完了です。  
-<BR>  
+
 ---
 
 ## 動作確認
@@ -171,9 +171,10 @@ Meridianを搭載したロボット実機がある場合、シミュレーショ
 
 **⚠️ 重要：meridis_manager.py を実行するときは [meridis マニュアル](https://github.com/holypong/meridis/blob/main/README.md)をよく読んでください**
 
-- meridis の インストールディレクトリ下で動かしてください
-- network.json`のネットワーク設定を確認してください
-- mgr_sim2real.json`のネットワーク設定を確認してください
+- `meridis_manager.py`は`meridis`のインストールディレクトリ下で動かしてください
+- `network.json`のネットワーク設定を事前に確認してください
+- `mgr_sim2real.json`のネットワーク設定を事前に確認してください
+
 
 **Quick Start 3 では、ターミナルを3つ使用します。**<br>
 **（別途、Redis-Serverを動かしているターミナルは常に開いている状態です）**
