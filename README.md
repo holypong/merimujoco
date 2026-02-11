@@ -115,7 +115,7 @@ python merimujoco.py
 - R-Button: 左右上下移動
 - M-Button: 前後移動
 - 左メニュー `Option`->`Font` 100% でメニューサイズを調整する
-- →メニュー `Control`で任意の関節をL-Buttonドラッグ操作する
+- 右メニュー `Control`で任意の関節をL-Buttonドラッグ操作する
 
 **⚠️ 重要：merimujoco 終了方法**
 
@@ -302,3 +302,6 @@ python meridis_manager.py --mgr mgr_real2sim.json
 
 - **[背景・目的・用語集を読む](README_concept.md)** - なぜmerimujoco?どんな世界がひろがる?
 - **[技術仕様を読む](README_advance.md)** - コマンド・設定ファイル詳細・カスタマイズ方法
+
+
+2026.02.11 holypong
