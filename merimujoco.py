@@ -14,7 +14,7 @@ import logging
 import math
 import json
 
-# ロガーの設定（INFOレベル、コンソール出力のみ）
+# ロガーの設定
 # level=logging.DEBUG       詳細ログが出力される（開発用）
 # level=logging.INFO        通常の情報ログのみ出力される（本番環境用）
 # level=logging.WARNING     WARNInG以上のログのみ出力される
