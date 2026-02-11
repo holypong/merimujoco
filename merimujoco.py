@@ -9,9 +9,23 @@ import os
 import signal
 import sys
 import argparse
+import logging
 
 import math
 import json
+
+# ロガーの設定（INFOレベル、コンソール出力のみ）
+# level=logging.DEBUG       詳細ログが出力される（開発用）
+# level=logging.INFO        通常の情報ログのみ出力される（本番環境用）
+# level=logging.WARNING     WARNInG以上のログのみ出力される
+# level=logging.ERROR       ERROR以上のログのみ出力される
+logging.basicConfig(
+    level=logging.INFO,  # 本番環境用
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    datefmt='%H:%M:%S',  # 時:分:秒のみ表示（日付とミリ秒を省略）
+    handlers=[logging.StreamHandler()]  # コンソール出力のみ
+)
+logger = logging.getLogger(__name__)
 
 # macOSでMuJoCoビューアーを動作させるための環境変数設定
 os.environ['MUJOCO_GL'] = 'glfw'
@@ -51,7 +65,7 @@ def load_redis_config(json_file: str ="redis.json"):
     
     try:
         if not os.path.exists(json_file):
-            print(f"[Warning] Redis config file '{json_file}' not found. Using default values.")
+            logger.warning(f"Redis config file '{json_file}' not found. Using default values.")
             return False
         
         with open(json_file, 'r', encoding='utf-8') as f:
@@ -78,20 +92,20 @@ def load_redis_config(json_file: str ="redis.json"):
             if 'joint_to_redis' in config['data_flow']:
                 FLG_JOINT_TO_REDIS = config['data_flow']['joint_to_redis']
         
-        print(f"[Config] Loaded Redis configuration from '{json_file}'")
-        print(f"[Config] Redis Server: {REDIS_HOST}:{REDIS_PORT}")
-        print(f"[Config] Redis Keys: Read='{REDIS_KEY_READ}', Write='{REDIS_KEY_WRITE}'")
-        print(f"[Config] Data Flow: Redis->Joint={FLG_REDIS_TO_JOINT}, Joint->Redis={FLG_JOINT_TO_REDIS}")
-        print(f"[Debug] redis: {config.get('redis', {})}")
-        print(f"[Debug] redis_keys: {config.get('redis_keys', {})}")
-        print(f"[Debug] data_flow: {config.get('data_flow', {})}")
+        logger.info(f"Loaded Redis configuration from '{json_file}'")
+        logger.info(f"Redis Server: {REDIS_HOST}:{REDIS_PORT}")
+        logger.info(f"Redis Keys: Read='{REDIS_KEY_READ}', Write='{REDIS_KEY_WRITE}'")
+        logger.info(f"Data Flow: Redis->Joint={FLG_REDIS_TO_JOINT}, Joint->Redis={FLG_JOINT_TO_REDIS}")
+        logger.debug(f"redis: {config.get('redis', {})}")
+        logger.debug(f"redis_keys: {config.get('redis_keys', {})}")
+        logger.debug(f"data_flow: {config.get('data_flow', {})}")
         return True
         
     except json.JSONDecodeError as e:
-        print(f"[Error] Failed to parse JSON file '{json_file}': {e}")
+        logger.error(f"Failed to parse JSON file '{json_file}': {e}")
         return False
     except Exception as e:
-        print(f"[Error] Failed to load Redis config from '{json_file}': {e}")
+        logger.error(f"Failed to load Redis config from '{json_file}': {e}")
         return False
 
 @dataclass
@@ -183,7 +197,7 @@ redis_receiver = RedisReceiver(host=REDIS_HOST, port=REDIS_PORT, redis_key=REDIS
 
 total_frames = 0    # 全体のフレーム数
 elapsed = 0.0       # 経過時間
-#start_time = 0.0   # 開始時間（メインループで設定）
+start_time = 0.0   # 開始時間（メインループで設定）
 line_vel_x = 0.0    # 前進速度
 line_vel_y = 0.0    # 左右速度
 ang_vel_z = 0.0     # 旋回速度
@@ -204,13 +218,13 @@ model.opt.integrator = mujoco.mjtIntegrator.mjINT_RK4  # 安定な積分器
 # model.dof_damping[:] = 5.0  # 大きすぎるためコメントアウト
 # 全geomの摩擦係数を上書き（静止摩擦、動摩擦、粘着摩擦）
 model.geom_friction[:, :] = [1.2, 0.8, 0.01]  # 着地安定化用の摩擦調整
-print(f"[Config] Gravity: {model.opt.gravity}, Timestep: {model.opt.timestep}")
+logger.info(f"Gravity: {model.opt.gravity}, Timestep: {model.opt.timestep}")
 
 
 
 # ビューアを初期化
-print(f"[Info] Detected OS: {platform.system()}")
-print(f"[Info] MUJOCO_GL environment variable: {os.environ.get('MUJOCO_GL', 'not set')}")
+logger.info(f"Detected OS: {platform.system()}")
+logger.info(f"MUJOCO_GL environment variable: {os.environ.get('MUJOCO_GL', 'not set')}")
 
 mdata = [0.0] * 90  # 初期化
 imu_mjc = Imu(
@@ -234,11 +248,11 @@ def motor_controller_thread():
 
         # リセット要求がある場合はリセットを実行
         if FLG_RESET_REQUEST:
-            print(f"[motor_controller_thread] executing mujoco reset")
+            logger.info("Executing MuJoCo reset")
             mujoco.mj_resetData(model, data)
             mujoco.mj_forward(model, data)
             FLG_RESET_REQUEST = False
-            print(f"[motor_controller_thread] reset completed")
+            logger.info("MuJoCo reset completed")
 
         if FLG_SET_RCVD and elapsed >= MOT_START_TIME:  # データ受信フラグが立っていて、開始時間を超えたら
             # meridis2キーからデータを読み込む
@@ -257,7 +271,7 @@ def motor_controller_thread():
 
                     if rcv_data[0] == MASTER_CMD_RESET:
                         # リセット要求フラグを立てる（メインループで実行）
-                        print(f"[motor_controller_thread] mujoco reset request {rcv_data[0]}")
+                        logger.info(f"MuJoCo reset request received: {rcv_data[0]}")
                         FLG_RESET_REQUEST = True
 
                         
@@ -385,7 +399,7 @@ def motor_controller_thread():
                             wx, wy, wz = 0.0, 0.0, 0.0
                     ang_vel = Vector3(math.degrees(float(wx)), math.degrees(float(wy)), math.degrees(float(wz)))
                 except Exception as e:
-                    print(f"[motor_controller_thread] 角速度取得エラー: {e}")
+                    logger.error(f"Angular velocity error: {e}")
                     ang_vel = Vector3(0.0, 0.0, 0.0)
                 # 加速度（重力ベクトルをc_chest座標系へ変換）
                 try:
@@ -395,7 +409,7 @@ def motor_controller_thread():
                     lin_acc_arr = chest_mat.T @ g
                     lin_acc = Vector3(float(lin_acc_arr[0]), float(lin_acc_arr[1]), float(lin_acc_arr[2]))
                 except Exception as e:
-                    print(f"[motor_controller_thread] 重力変換エラー: {e}")
+                    logger.error(f"Gravity transform error: {e}")
                     lin_acc = Vector3(0.0, 0.0, 0.0)
                 
                 with imu_lock:
@@ -407,7 +421,7 @@ def motor_controller_thread():
                     )
 
                 # mujocoのIMUデータを小数点2桁で表示
-                print(f"[Debug] mjc: {imu_mjc.orientation.x:.2f}, {imu_mjc.orientation.y:.2f}, {imu_mjc.orientation.z:.2f}")
+                logger.debug("IMU: %.2f, %.2f, %.2f", imu_mjc.orientation.x, imu_mjc.orientation.y, imu_mjc.orientation.z)
 
                 mdata[2] = round(imu_mjc.linear_acceleration.x, 4)   # ax(m/s^2)
                 mdata[3] = round(imu_mjc.linear_acceleration.y, 4)   # ay(m/s^2)
@@ -444,7 +458,7 @@ mot_ctrl_thread.start()
 
 # シグナルハンドラを設定
 def signal_handler(sig, frame):
-    print(f"\n[Info] Signal {sig} received. Exiting...")
+    logger.info(f"Signal {sig} received. Exiting...")
     try:
         glfw.terminate()
     except:
@@ -460,11 +474,11 @@ if hasattr(signal, 'SIGTSTP'):
 # メインループで制御＋mj_step
 start_time = time.time()
 
-print("[Info] Simulation started. Push [x]button or Select Menu [File -> Quit] to stop.")
+logger.info("Simulation started. Push [x]button or Select Menu [File -> Quit] to stop.")
 
 # MuJoCoビューアーを起動（ブロッキング実行）
 # Note: フォントスケールはビューワーのUI内で手動調整可能です
-print("[Info] Launching MuJoCo viewer...")
+logger.info("Launching MuJoCo viewer...")
 mujoco.viewer.launch(model, data)
 
 # ビューアー終了後にGLFWをクリーンアップ
