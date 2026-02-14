@@ -62,7 +62,7 @@
   </asset>
 
   <worldbody>
-    <body name="c_waist" pos="0 0 0.5">
+    <body name="c_waist" pos="0 0 0.35">
       <freejoint />
       <!-- text(displaytext) -->
       <geom class="visual" type="mesh" mesh="c_waist" rgba="0.153 0.153 0.153 1.0" group="1"/>

@@ -38,34 +38,37 @@ class DanceMotion:
         """Calculate dance motion with sine curve for full-body movement"""
         # Initialize
         self.meridis_motion = [0.0] * 90
+
+        def r(value):
+            return round(float(value), 2)
         
         # Dance motion with sine curve for full-body wiggling
-        self.meridis_motion[21] = -int(np.sin(self.x) * 30)             # Head yaw
-        self.meridis_motion[51] = int(np.sin(self.x) * 20)              # Waist yaw
+        self.meridis_motion[21] = r(-np.sin(self.x) * 30)               # Head yaw
+        self.meridis_motion[51] = r(np.sin(self.x) * 20)                # Waist yaw
 
-        self.meridis_motion[23] = int(np.sin(self.x) * 20)              # Left shoulder pitch
-        self.meridis_motion[25] = -int(np.sin(self.x * 2) * 10) + 30    # Left shoulder roll
-        self.meridis_motion[27] = int(np.sin(self.x) * 10) + 10         # Left elbow yaw
-        self.meridis_motion[29] = int(np.sin(self.x) * 45) - 45         # Left elbow pitch
-        self.meridis_motion[31] = int(np.sin(self.x) * 5)               # Left hip yaw
+        self.meridis_motion[23] = r(np.sin(self.x) * 20)                # Left shoulder pitch
+        self.meridis_motion[25] = r(-np.sin(self.x * 2) * 10 + 30)      # Left shoulder roll
+        self.meridis_motion[27] = r(np.sin(self.x) * 10 + 10)           # Left elbow yaw
+        self.meridis_motion[29] = r(np.sin(self.x) * 45 - 45)           # Left elbow pitch
+        self.meridis_motion[31] = r(np.sin(self.x) * 5)                 # Left hip yaw
 
-        self.meridis_motion[53] = -int(np.sin(self.x) * 20)             # Right shoulder pitch
-        self.meridis_motion[55] = -int(np.sin(self.x * 2) * 10) + 30    # Right shoulder roll
-        self.meridis_motion[57] = -int(np.sin(self.x) * 10) + 10        # Right elbow yaw
-        self.meridis_motion[59] = -int(np.sin(self.x) * 45) - 45        # Right elbow pitch
-        self.meridis_motion[61] = -int(np.sin(self.x) * 5)              # Right hip yaw
+        self.meridis_motion[53] = r(-np.sin(self.x) * 20)               # Right shoulder pitch
+        self.meridis_motion[55] = r(-np.sin(self.x * 2) * 10 + 30)      # Right shoulder roll
+        self.meridis_motion[57] = r(-np.sin(self.x) * 10 + 10)          # Right elbow yaw
+        self.meridis_motion[59] = r(-np.sin(self.x) * 45 - 45)          # Right elbow pitch
+        self.meridis_motion[61] = r(-np.sin(self.x) * 5)                # Right hip yaw
 
-        self.meridis_motion[33] = -int(np.sin(self.x) * 5)              # Left hip roll
-        self.meridis_motion[35] = int(np.sin(self.x * 2) * 5) - 5       # Left hip pitch
-        self.meridis_motion[37] = -int(np.sin(self.x * 2) * 10) + 10    # Left knee pitch
-        self.meridis_motion[39] = int(np.sin(self.x * 2) * 5) - 5       # Left ankle pitch
-        self.meridis_motion[41] = int(np.sin(self.x) * 5)               # Left ankle roll
+        self.meridis_motion[33] = r(-np.sin(self.x) * 5)                # Left hip roll
+        self.meridis_motion[35] = r(np.sin(self.x * 2) * 5 - 5)         # Left hip pitch
+        self.meridis_motion[37] = r(-np.sin(self.x * 2) * 10 + 10)      # Left knee pitch
+        self.meridis_motion[39] = r(np.sin(self.x * 2) * 5 - 5)         # Left ankle pitch
+        self.meridis_motion[41] = r(np.sin(self.x) * 5)                 # Left ankle roll
 
-        self.meridis_motion[63] = int(np.sin(self.x) * 5)               # Right hip roll
-        self.meridis_motion[65] = -int(np.sin(self.x * 2) * 5) - 5      # Right hip pitch
-        self.meridis_motion[67] = int(np.sin(self.x * 2) * 10) + 10     # Right knee pitch
-        self.meridis_motion[69] = -int(np.sin(self.x * 2) * 5) - 5      # Right ankle pitch
-        self.meridis_motion[71] = -int(np.sin(self.x) * 5)              # Right ankle roll
+        self.meridis_motion[63] = r(np.sin(self.x) * 5)                 # Right hip roll
+        self.meridis_motion[65] = r(-np.sin(self.x * 2) * 5 - 5)        # Right hip pitch
+        self.meridis_motion[67] = r(np.sin(self.x * 2) * 10 + 10)       # Right knee pitch
+        self.meridis_motion[69] = r(-np.sin(self.x * 2) * 5 - 5)        # Right ankle pitch
+        self.meridis_motion[71] = r(-np.sin(self.x) * 5)                # Right ankle roll
         
         return self.meridis_motion
     
