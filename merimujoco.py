@@ -215,8 +215,9 @@ model.opt.gravity[:] = [0, 0, -9.8]           # 重力（地球標準）
 model.opt.timestep = 0.001                    # タイムステップ（1ms）
 model.opt.integrator = mujoco.mjtIntegrator.mjINT_RK4  # 安定な積分器
 # 関節減衰を適度に設定（XMLのデフォルト0.1を維持）
-# model.dof_damping[:] = 5.0    # 大型ロボット 2.0-10.0
 model.dof_damping[:] = 0.5      # 小型ロボット 0.1-0.5
+                                # 中型ロボット 0.5-2.0
+                                # 大型ロボット 2.0-10.0
 # 全geomの摩擦係数を上書き（静止摩擦、動摩擦、粘着摩擦）
 model.geom_friction[:, :] = [1.2, 0.8, 0.01]  # 着地安定化用の摩擦調整
 logger.info(f"Gravity: {model.opt.gravity}, Timestep: {model.opt.timestep}")
