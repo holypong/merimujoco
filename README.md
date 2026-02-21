@@ -14,7 +14,8 @@
 
 拡張機能として、AIエージェントが生成した制御指令をMCPサーバー経由でシミュレーションまたはロボット実機に渡すシステムの公開も予定しています。
 
-![merimujoco](image/merimujoco.png)
+[![merimujoco](image/merimujoco-youtube.png)](https://www.youtube.com/watch?v=PYukdFwX8sE)
+<br>上の画像をクリックするとYoutube動画を再生します
 
 - **MuJoCo**  
 Google DeepMind社が提供するオープンソースの高精度な物理シミュレーション環境です。
