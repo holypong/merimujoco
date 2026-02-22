@@ -314,4 +314,6 @@ python meridis_manager.py --mgr mgr_real2sim.json
 - **[技術仕様を読む](README_advance.md)** - コマンド・設定ファイル詳細・カスタマイズ方法
 
 
-2026.02.11 holypong
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
