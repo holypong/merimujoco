@@ -51,6 +51,7 @@ MASTER_CMD_RESET = 5556     # リセットコマンド番号
 viewer = None  # MuJoCo viewer object
 
 MOT_START_TIME = 1.0  # 開始時間
+ACTUATOR_FORCE_SCALE = 1.0  # 実機寄りにトルク感を上げる係数
 
 # Redisサーバー設定（デフォルト値）
 REDIS_HOST = "127.0.0.1"
@@ -220,7 +221,11 @@ model.dof_damping[:] = 0.5      # 小型ロボット 0.1-0.5
                                 # 大型ロボット 2.0-10.0
 # 全geomの摩擦係数を上書き（静止摩擦、動摩擦、粘着摩擦）
 model.geom_friction[:, :] = [1.2, 0.8, 0.01]  # 着地安定化用の摩擦調整
+# 実機より弱くなりやすい出力上限を補正（position actuatorのforcelimitを拡大）
+model.actuator_forcerange[:, 0] *= ACTUATOR_FORCE_SCALE
+model.actuator_forcerange[:, 1] *= ACTUATOR_FORCE_SCALE
 logger.info(f"Gravity: {model.opt.gravity}, Timestep: {model.opt.timestep}")
+logger.info(f"Actuator force range scaled by x{ACTUATOR_FORCE_SCALE}")
 
 
 
