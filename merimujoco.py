@@ -253,6 +253,9 @@ def motor_controller_thread():
 
     # chest_body_idを取得
     chest_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "c_chest")
+    # foot_body_idを取得
+    l_foot_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "l_foot")
+    r_foot_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "r_foot")
 
     while True:
         # 時間を更新
@@ -458,7 +461,23 @@ def motor_controller_thread():
                 mdata[12] = round(imu_mjc.orientation.x, 4)   # roll(deg)
                 mdata[13] = round(imu_mjc.orientation.y, 4)   # pitch(deg)
                 mdata[14] = round(imu_mjc.orientation.z, 4)   # yaw(deg)
-                
+
+                # 足先XYZ位置をmm換算で書き込む
+                # X/Y: ロボット中心(c_chest)からの相対位置, Z: 地面からの高さ(ワールドZ)
+                with sim_lock:
+                    xpos = np.array(data.xpos)  # shape=(nbody, 3)
+                    origin = xpos[chest_body_id]           # ロボット中心（ワールド座標）
+                    lf_xy = (xpos[l_foot_body_id] - origin)[:2] * 1000.0  # X/Y 相対 m -> mm
+                    rf_xy = (xpos[r_foot_body_id] - origin)[:2] * 1000.0
+                    lf_z  = xpos[l_foot_body_id][2] * 1000.0  # Z 地面からの高さ m -> mm
+                    rf_z  = xpos[r_foot_body_id][2] * 1000.0
+                mdata[47] = round(float(lf_xy[0]), 2)  # l_foot_x (mm, 中心相対)
+                mdata[48] = round(float(lf_xy[1]), 2)  # l_foot_y (mm, 中心相対)
+                mdata[49] = round(float(lf_z),     2)  # l_foot_z (mm, 地面からの高さ)
+                mdata[77] = round(float(rf_xy[0]), 2)  # r_foot_x (mm, 中心相対)
+                mdata[78] = round(float(rf_xy[1]), 2)  # r_foot_y (mm, 中心相対)
+                mdata[79] = round(float(rf_z),     2)  # r_foot_z (mm, 地面からの高さ)
+
                 # FLG_JOINT_TO_REDISがTrueの場合、関節角度をRedisに送信
                 if FLG_JOINT_TO_REDIS:
                     with sim_lock:
