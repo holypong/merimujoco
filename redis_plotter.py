@@ -7,7 +7,6 @@ from collections import deque
 import json
 import os
 import sys
-from pathlib import Path
 import time
 from matplotlib.widgets import Button
 
@@ -17,25 +16,38 @@ from matplotlib.widgets import Button
 REDIS_HOST = "127.0.0.1"
 REDIS_PORT = 6379
 
-def load_network_config(filename: str = "network.json"):
-    """Load Redis host/port from network.json located next to this script.
-    Returns (host, port) and falls back to defaults on any error.
+def load_redis_config(json_file: str = "redis.json"):
+    """merimujoco.py と同じ形式の redis*.json から Redis 接続設定を読み込む。
+    Returns (host, port, redis_key_read)。ファイルが存在しない場合はデフォルト値を返す。
     """
-    base = Path(__file__).parent
-    path = base / filename
-    if not path.exists():
-        print(f"Error: required network config not found: {path}", file=sys.stderr)
-        sys.exit(1)
-    with path.open("r", encoding="utf-8") as f:
-        cfg = json.load(f)
-    redis_cfg = cfg.get("redis", {})
-    host = redis_cfg.get("host", REDIS_HOST)
-    port = redis_cfg.get("port", REDIS_PORT)
-    return host, int(port)
+    host = REDIS_HOST
+    port = REDIS_PORT
+    redis_key = "meridis"
 
+    if not os.path.exists(json_file):
+        print(f"Warning: Redis config file '{json_file}' not found. Using defaults.", file=sys.stderr)
+        return host, port, redis_key
 
-# Load effective Redis settings
-REDIS_HOST, REDIS_PORT = load_network_config()
+    try:
+        with open(json_file, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+
+        if 'redis' in config:
+            host = config['redis'].get('host', host)
+            port = int(config['redis'].get('port', port))
+
+        if 'redis_keys' in config:
+            redis_key = config['redis_keys'].get('read', redis_key)
+
+        print(f"Loaded Redis config from '{json_file}'")
+        print(f"  Redis: {host}:{port}, Key(read): {redis_key}")
+
+    except json.JSONDecodeError as e:
+        print(f"Error: Failed to parse '{json_file}': {e}", file=sys.stderr)
+    except Exception as e:
+        print(f"Error: Failed to load '{json_file}': {e}", file=sys.stderr)
+
+    return host, port, redis_key
 
 def get_local_ip():
     """自身のIPアドレスを取得する"""
@@ -54,6 +66,7 @@ class RedisPlotter:
         self.receiver = receiver
         self.enable_log = enable_log
         self.display_mode = display_mode
+        self.ani = None
         
         # Joint mapping dictionary moved from redis_receiver.py
         self.joint_to_meridis = {
@@ -257,19 +270,23 @@ class RedisPlotter:
         if self.animation_paused:
             # 現在停止中 → 再開
             self.animation_paused = False
+            if self.ani is not None and self.ani.event_source is not None:
+                self.ani.event_source.start()
             self.control_button.label.set_text('Pause')
             self.control_button.color = 'blue'
             self.control_button.hovercolor = 'darkblue'
         else:
             # 現在実行中 → 停止
             self.animation_paused = True
+            if self.ani is not None and self.ani.event_source is not None:
+                self.ani.event_source.stop()
             self.control_button.label.set_text('Resume')
             self.control_button.color = 'green'
             self.control_button.hovercolor = 'darkgreen'
         
         # ボタンの背景色を更新
         self.control_button.ax.set_facecolor(self.control_button.color)
-        plt.draw()
+        self.fig.canvas.draw_idle()
 
     # Moved from redis_receiver.py: get_joint_groups() function
     def get_joint_groups(self):
@@ -400,7 +417,7 @@ class RedisPlotter:
     def run(self, interval=10):
         """Run the animation with specified interval (in milliseconds)"""
         try:
-            ani = animation.FuncAnimation(
+            self.ani = animation.FuncAnimation(
                 self.fig, 
                 self.update_plot, 
                 interval=interval,
@@ -417,25 +434,40 @@ class RedisPlotter:
 
 def main():
     # コマンドライン引数の処理
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--width', type=int, default=8, help='Figure width in inches')
-    parser.add_argument('--height', type=int, default=9, help='Figure height in inches')
-    parser.add_argument('--window', type=float, default=5.0, help='Time window size in seconds')
-    parser.add_argument('--log', type=str, default='off', help='Enable logging of base joint values (on/off)')
-    parser.add_argument('--redis-key', type=str, default='meridis', help='Redis key name to read data from(default:meridis)')
-    parser.add_argument('--display', type=str, default='joint', help='Display mode: joint (all joint angles) or foot (foot positions)')
+    parser = argparse.ArgumentParser(
+        description='Redis Plotter - リアルタイム関節角度・足先位置可視化ツール',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    parser.add_argument('--redis', type=str, default='redis.json',
+                        help='Redis設定JSONファイル (merimujoco.py と同形式)')
+    parser.add_argument('--redis-key', type=str, default=None,
+                        help='読み取るRedisキー名 (省略時はJSONのredis_keys.readを使用)')
+    parser.add_argument('--width', type=int, default=8,
+                        help='グラフ幅 (インチ)')
+    parser.add_argument('--height', type=int, default=9,
+                        help='グラフ高さ (インチ)')
+    parser.add_argument('--window', type=float, default=5.0,
+                        help='表示する時間窓 (秒)')
+    parser.add_argument('--log', type=str, default='off', choices=['on', 'off'],
+                        help='Redisデータのログ出力')
+    parser.add_argument('--display', type=str, default='joint', choices=['joint', 'foot'],
+                        help='表示モード: joint=関節角度, foot=足先位置')
     args = parser.parse_args()
+
+    # Redis設定をJSONから読み込む (merimujoco.py と同じ方式)
+    redis_host, redis_port, redis_key_from_json = load_redis_config(args.redis)
+    redis_key = args.redis_key if args.redis_key is not None else redis_key_from_json
 
     # 起動時の情報表示（meridis_manager.pyと同じスタイル）
     print(f"Redis Plotter started. This PC's IP address is {get_local_ip()}")
-    print(f"Connected to Redis at {REDIS_HOST}:{REDIS_PORT} for key '{args.redis_key}'")
+    print(f"Connected to Redis at {redis_host}:{redis_port} for key '{redis_key}'")
     print(f"Plot window: {args.window} seconds, Figure size: {args.width*100}x{args.height*100} pixels")
     print(f"Log output: {'enabled' if args.log.lower() == 'on' else 'disabled'}")
     print(f"Display mode: {args.display}")
     print(f"Animation interval: 10ms")
-    
-    # RedisReceiverのインスタンス化（IPアドレスを指定）
-    receiver = RedisReceiver(host=REDIS_HOST, window_size=args.window, redis_key=args.redis_key)
+
+    # RedisReceiverのインスタンス化
+    receiver = RedisReceiver(host=redis_host, port=redis_port, window_size=args.window, redis_key=redis_key)
     
     # ログ機能の有効/無効を判定
     enable_log = args.log.lower() == 'on'
