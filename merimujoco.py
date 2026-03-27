@@ -47,6 +47,7 @@ FLG_REDIS_TO_JOINT = True        # Redisから受信した値を関節にセッ�
 FLG_JOINT_TO_REDIS = False       # 関節角度をRedisに送信するフラグ
 
 MASTER_CMD_RESET = 5556     # リセットコマンド番号
+RESET_CMD_COOLDOWN_SEC = 0.3  # 連続リセット抑止の最短間隔
 
 viewer = None  # MuJoCo viewer object
 
@@ -205,6 +206,7 @@ ang_vel_z = 0.0     # 旋回速度
 
 # スレッドセーフのためのロック
 imu_lock = threading.Lock()
+sim_lock = threading.Lock()
 
 # モデルを読み込む
 model = mujoco.MjModel.from_xml_path('roid1_mjcf/scene.xml')
@@ -245,6 +247,10 @@ imu_mjc = Imu(
 def motor_controller_thread():
     global imu_mjc, FLG_RESET_REQUEST, elapsed, total_frames, start_time, line_vel_x, line_vel_y, ang_vel_z
 
+    # リセットコマンドは立ち上がりエッジでのみ受理する。
+    reset_cmd_latched = False
+    last_reset_request_time = 0.0
+
     # chest_body_idを取得
     chest_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "c_chest")
 
@@ -256,8 +262,9 @@ def motor_controller_thread():
         # リセット要求がある場合はリセットを実行
         if FLG_RESET_REQUEST:
             logger.info("Executing MuJoCo reset")
-            mujoco.mj_resetData(model, data)
-            mujoco.mj_forward(model, data)
+            with sim_lock:
+                mujoco.mj_resetData(model, data)
+                mujoco.mj_forward(model, data)
             FLG_RESET_REQUEST = False
             logger.info("MuJoCo reset completed")
 
@@ -276,10 +283,19 @@ def motor_controller_thread():
                     # データの更新
                     #print(f"rcv data: {rcv_data}") # meridian -> redis データを確認
 
-                    if rcv_data[0] == MASTER_CMD_RESET:
-                        # リセット要求フラグを立てる（メインループで実行）
-                        logger.info(f"MuJoCo reset request received: {rcv_data[0]}")
-                        FLG_RESET_REQUEST = True
+                    is_reset_cmd = (rcv_data[0] == MASTER_CMD_RESET)
+
+                    if is_reset_cmd and not reset_cmd_latched:
+                        now = time.time()
+                        if (now - last_reset_request_time) >= RESET_CMD_COOLDOWN_SEC:
+                            # リセット要求フラグを立てる（メインループで実行）
+                            logger.info(f"MuJoCo reset request received: {rcv_data[0]}")
+                            FLG_RESET_REQUEST = True
+                            last_reset_request_time = now
+                        reset_cmd_latched = True
+                    elif not is_reset_cmd:
+                        # コマンド解除後に次のリセット要求を受け付ける
+                        reset_cmd_latched = False
 
                         
                     # IMU
@@ -315,14 +331,15 @@ def motor_controller_thread():
 
                     # FLG_REDIS_TO_JOINTがTrueの場合のみRedisから受信した値を関節にセット
                     if FLG_REDIS_TO_JOINT:
-                        for joint_name, meridis_index in joint_to_meridis.items():
-                            if joint_name in joint_names:
-                                # Handle joint positions (convert from radians to degrees)
-                                joint_idx = joint_names.index(joint_name)
-                                meridis_idx = joint_to_meridis[joint_name][0]
-                                meridis_mul = joint_to_meridis[joint_name][1]
-                                data.ctrl[joint_idx] = round(np.radians(float(rcv_data[meridis_idx])*meridis_mul), 2)
-                                #print(f"joint_name: {joint_name}, joint_idx: {joint_idx}, ctrl: {data.ctrl[joint_idx]}, mul: {joint_to_meridis[joint_name][1]}")
+                        with sim_lock:
+                            for joint_name, meridis_index in joint_to_meridis.items():
+                                if joint_name in joint_names:
+                                    # Handle joint positions (convert from radians to degrees)
+                                    joint_idx = joint_names.index(joint_name)
+                                    meridis_idx = joint_to_meridis[joint_name][0]
+                                    meridis_mul = joint_to_meridis[joint_name][1]
+                                    data.ctrl[joint_idx] = round(np.radians(float(rcv_data[meridis_idx])*meridis_mul), 2)
+                                    #print(f"joint_name: {joint_name}, joint_idx: {joint_idx}, ctrl: {data.ctrl[joint_idx]}, mul: {joint_to_meridis[joint_name][1]}")
 
                     # mdataの更新 +Hori 20250628
                     for i in range(len(mdata)):
@@ -336,34 +353,35 @@ def motor_controller_thread():
             if FLG_CREATE_CTRL and elapsed >= MOT_START_TIME:  # 制御信号作成フラグが立っていて、開始時間を超えたら
                 # make actions:データの更新
 
-                for joint_name, meridis_index in joint_to_meridis.items():
+                with sim_lock:
+                    for joint_name, meridis_index in joint_to_meridis.items():
 
-                    if joint_name in joint_names:
-                        # Handle joint positions (convert from radians to degrees)
-                        joint_idx = joint_names.index(joint_name)
+                        if joint_name in joint_names:
+                            # Handle joint positions (convert from radians to degrees)
+                            joint_idx = joint_names.index(joint_name)
 
-                        mot_ctrl = (elapsed - MOT_START_TIME)
+                            mot_ctrl = (elapsed - MOT_START_TIME)
 
-                        # 各関節に対応する制御振幅（中心を0とする正弦波）
-                        amplitude = {
-                            "thigh_pitch": math.radians(-30),   # -30°
-                            "knee_pitch": math.radians(60),   # 60°
-                            "ankle_pitch": math.radians(-30)   # -30°
-                        }
+                            # 各関節に対応する制御振幅（中心を0とする正弦波）
+                            amplitude = {
+                                "thigh_pitch": math.radians(-30),   # -30°
+                                "knee_pitch": math.radians(60),   # 60°
+                                "ankle_pitch": math.radians(-30)   # -30°
+                            }
 
-                        # モデルの関節に応じて制御信号を設定
-                        for joint_type, amp in amplitude.items():
-                            if joint_name == f"l_{joint_type}" or joint_name == f"r_{joint_type}":
-                                data.ctrl[joint_idx] = amp * abs(math.sin(mot_ctrl))
+                            # モデルの関節に応じて制御信号を設定
+                            for joint_type, amp in amplitude.items():
+                                if joint_name == f"l_{joint_type}" or joint_name == f"r_{joint_type}":
+                                    data.ctrl[joint_idx] = amp * abs(math.sin(mot_ctrl))
 
-                            mdata[meridis_index[0]] = round(np.degrees(float(data.ctrl[joint_idx])), 2)
+                                mdata[meridis_index[0]] = round(np.degrees(float(data.ctrl[joint_idx])), 2)
 
-                joint_idx = joint_names.index("c_head")  # c_headのインデックスを取得
-                data.ctrl[joint_idx] = 1.0 * ang_vel_z
-                mdata[joint_to_meridis["c_head"][0]] = round(np.degrees(float(data.ctrl[joint_idx])), 2)
-                joint_idx = joint_names.index("l_shoulder_pitch")  # c_headのインデックスを取得
-                data.ctrl[joint_idx] = 1.0 * -line_vel_y
-                mdata[joint_to_meridis["l_shoulder_pitch"][0]] = round(np.degrees(float(data.ctrl[joint_idx])), 2)
+                    joint_idx = joint_names.index("c_head")  # c_headのインデックスを取得
+                    data.ctrl[joint_idx] = 1.0 * ang_vel_z
+                    mdata[joint_to_meridis["c_head"][0]] = round(np.degrees(float(data.ctrl[joint_idx])), 2)
+                    joint_idx = joint_names.index("l_shoulder_pitch")  # c_headのインデックスを取得
+                    data.ctrl[joint_idx] = 1.0 * -line_vel_y
+                    mdata[joint_to_meridis["l_shoulder_pitch"][0]] = round(np.degrees(float(data.ctrl[joint_idx])), 2)
                 print(f"mdata: {mdata}")
 
             # Redis にデータを送信
@@ -371,53 +389,54 @@ def motor_controller_thread():
 
                 # --- c_chestのIMU計算 (Redis送信直前) ---
                 # 姿勢
-                xmat = data.xmat
-                arr = np.array(xmat)
-                if arr.ndim == 2 and arr.shape[1] == 9:
-                    chest_mat = arr[chest_body_id].reshape(3, 3)
-                else:
-                    flat = arr.flatten()
-                    start_idx = chest_body_id * 9
-                    end_idx = (chest_body_id + 1) * 9
-                    if end_idx <= flat.size:
-                        chest_mat = flat[start_idx:end_idx].reshape(3, 3)
+                with sim_lock:
+                    xmat = data.xmat
+                    arr = np.array(xmat)
+                    if arr.ndim == 2 and arr.shape[1] == 9:
+                        chest_mat = arr[chest_body_id].reshape(3, 3)
                     else:
-                        chest_mat = np.eye(3)
-                yaw = math.atan2(float(chest_mat[1, 0]), float(chest_mat[0, 0]))
-                pitch = math.asin(max(-1.0, min(1.0, -float(chest_mat[2, 0]))))
-                roll = math.atan2(float(chest_mat[2, 1]), float(chest_mat[2, 2]))
-                yaw_deg = math.degrees(yaw)
-                pitch_deg = math.degrees(pitch)
-                roll_deg = math.degrees(roll)
-                # 角速度（data.cvel: shape=(nbody, 6)）
-                ang_vel = Vector3(0.0, 0.0, 0.0)
-                try:
-                    cvel = np.array(data.cvel)
-                    if cvel.ndim == 2 and cvel.shape[1] >= 6:
-                        wx, wy, wz = cvel[chest_body_id, 3:6]
-                    else:
-                        flat = cvel.flatten()
-                        start_idx = chest_body_id * 6
-                        end_idx = (chest_body_id + 1) * 6
+                        flat = arr.flatten()
+                        start_idx = chest_body_id * 9
+                        end_idx = (chest_body_id + 1) * 9
                         if end_idx <= flat.size:
-                            seg = flat[start_idx:end_idx]
-                            wx, wy, wz = seg[3:6]
+                            chest_mat = flat[start_idx:end_idx].reshape(3, 3)
                         else:
-                            wx, wy, wz = 0.0, 0.0, 0.0
-                    ang_vel = Vector3(math.degrees(float(wx)), math.degrees(float(wy)), math.degrees(float(wz)))
-                except Exception as e:
-                    logger.error(f"Angular velocity error: {e}")
+                            chest_mat = np.eye(3)
+                    yaw = math.atan2(float(chest_mat[1, 0]), float(chest_mat[0, 0]))
+                    pitch = math.asin(max(-1.0, min(1.0, -float(chest_mat[2, 0]))))
+                    roll = math.atan2(float(chest_mat[2, 1]), float(chest_mat[2, 2]))
+                    yaw_deg = math.degrees(yaw)
+                    pitch_deg = math.degrees(pitch)
+                    roll_deg = math.degrees(roll)
+                    # 角速度（data.cvel: shape=(nbody, 6)）
                     ang_vel = Vector3(0.0, 0.0, 0.0)
-                # 加速度（重力ベクトルをc_chest座標系へ変換）
-                try:
-                    g = np.array(model.opt.gravity)  # shape=(3,)
-                    # chest_mat: ワールド→c_chest の回転行列
-                    # gはワールド座標系なので、c_chest座標系へは R^T @ g
-                    lin_acc_arr = chest_mat.T @ g
-                    lin_acc = Vector3(float(lin_acc_arr[0]), float(lin_acc_arr[1]), float(lin_acc_arr[2]))
-                except Exception as e:
-                    logger.error(f"Gravity transform error: {e}")
-                    lin_acc = Vector3(0.0, 0.0, 0.0)
+                    try:
+                        cvel = np.array(data.cvel)
+                        if cvel.ndim == 2 and cvel.shape[1] >= 6:
+                            wx, wy, wz = cvel[chest_body_id, 3:6]
+                        else:
+                            flat = cvel.flatten()
+                            start_idx = chest_body_id * 6
+                            end_idx = (chest_body_id + 1) * 6
+                            if end_idx <= flat.size:
+                                seg = flat[start_idx:end_idx]
+                                wx, wy, wz = seg[3:6]
+                            else:
+                                wx, wy, wz = 0.0, 0.0, 0.0
+                        ang_vel = Vector3(math.degrees(float(wx)), math.degrees(float(wy)), math.degrees(float(wz)))
+                    except Exception as e:
+                        logger.error(f"Angular velocity error: {e}")
+                        ang_vel = Vector3(0.0, 0.0, 0.0)
+                    # 加速度（重力ベクトルをc_chest座標系へ変換）
+                    try:
+                        g = np.array(model.opt.gravity)  # shape=(3,)
+                        # chest_mat: ワールド→c_chest の回転行列
+                        # gはワールド座標系なので、c_chest座標系へは R^T @ g
+                        lin_acc_arr = chest_mat.T @ g
+                        lin_acc = Vector3(float(lin_acc_arr[0]), float(lin_acc_arr[1]), float(lin_acc_arr[2]))
+                    except Exception as e:
+                        logger.error(f"Gravity transform error: {e}")
+                        lin_acc = Vector3(0.0, 0.0, 0.0)
                 
                 with imu_lock:
                     imu_mjc = Imu(
@@ -442,14 +461,15 @@ def motor_controller_thread():
                 
                 # FLG_JOINT_TO_REDISがTrueの場合、関節角度をRedisに送信
                 if FLG_JOINT_TO_REDIS:
-                    for joint_name, meridis_index in joint_to_meridis.items():
-                        if joint_name in joint_names:
-                            joint_idx = joint_names.index(joint_name)
-                            meridis_idx = joint_to_meridis[joint_name][0]
-                            meridis_mul = joint_to_meridis[joint_name][1]
-                            # data.ctrl[joint_idx]はラジアン、度数に変換して格納（multiplierで元に戻す）
-                            joint_angle_deg = math.degrees(data.ctrl[joint_idx]) / meridis_mul
-                            mdata[meridis_idx] = round(joint_angle_deg, 4)
+                    with sim_lock:
+                        for joint_name, meridis_index in joint_to_meridis.items():
+                            if joint_name in joint_names:
+                                joint_idx = joint_names.index(joint_name)
+                                meridis_idx = joint_to_meridis[joint_name][0]
+                                meridis_mul = joint_to_meridis[joint_name][1]
+                                # data.ctrl[joint_idx]はラジアン、度数に変換して格納（multiplierで元に戻す）
+                                joint_angle_deg = math.degrees(data.ctrl[joint_idx]) / meridis_mul
+                                mdata[meridis_idx] = round(joint_angle_deg, 4)
                 
                 #start_time = time.perf_counter()
                 redis_transfer.set_data(REDIS_KEY_WRITE, mdata)
@@ -460,6 +480,7 @@ def motor_controller_thread():
         time.sleep(0.01)  # 10ms待機
 
 # スレッドを開始
+start_time = time.time()
 mot_ctrl_thread = threading.Thread(target=motor_controller_thread, daemon=True)
 mot_ctrl_thread.start()
 
@@ -478,15 +499,20 @@ signal.signal(signal.SIGINT, signal_handler)
 if hasattr(signal, 'SIGTSTP'):
     signal.signal(signal.SIGTSTP, signal_handler)
 
-# メインループで制御＋mj_step
-start_time = time.time()
-
 logger.info("Simulation started. Push [x]button or Select Menu [File -> Quit] to stop.")
 
-# MuJoCoビューアーを起動（ブロッキング実行）
+# MuJoCoビューアーを起動（パッシブ実行）
 # Note: フォントスケールはビューワーのUI内で手動調整可能です
 logger.info("Launching MuJoCo viewer...")
-mujoco.viewer.launch(model, data)
+try:
+    with mujoco.viewer.launch_passive(model, data) as viewer:
+        while viewer.is_running():
+            with sim_lock:
+                mujoco.mj_step(model, data)
+            viewer.sync()
+            time.sleep(model.opt.timestep)
+except Exception as e:
+    logger.exception(f"MuJoCo viewer loop error: {e}")
 
 # ビューアー終了後にGLFWをクリーンアップ
 try:
