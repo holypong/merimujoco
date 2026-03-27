@@ -509,7 +509,7 @@ try:
         while viewer.is_running():
             with sim_lock:
                 mujoco.mj_step(model, data)
-            viewer.sync()
+                viewer.sync()
             time.sleep(model.opt.timestep)
 except Exception as e:
     logger.exception(f"MuJoCo viewer loop error: {e}")
