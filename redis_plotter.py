@@ -67,6 +67,14 @@ class RedisPlotter:
         self.enable_log = enable_log
         self.display_mode = display_mode
         self.ani = None
+        self.base_fig_size = (fig_width, fig_height)
+        self.base_font_sizes = {
+            'title': 12,
+            'label': 10,
+            'tick': 9,
+            'legend': 8,
+            'button': 9,
+        }
         
         # Joint mapping dictionary moved from redis_receiver.py
         self.joint_to_meridis = {
@@ -124,6 +132,10 @@ class RedisPlotter:
         
         # ボタンの設定
         self._setup_control_buttons()
+
+        # ウィンドウサイズに応じたフォント自動調整
+        self._connect_resize_handler()
+        self._apply_responsive_fonts()
 
     def _setup_joint_display(self):
         """Setup display for joint mode (original behavior)"""
@@ -191,6 +203,9 @@ class RedisPlotter:
                          list(self.left_lines.values()) + 
                          list(self.right_lines.values()))
 
+        # X軸タイトルを右端に配置
+        self._align_xlabels_to_right()
+
     def _setup_foot_display(self):
         """Setup display for foot mode"""
         # タイトルをウィンドウタイトルバーに表示
@@ -253,6 +268,15 @@ class RedisPlotter:
                          list(self.left_lines.values()) + 
                          list(self.right_lines.values()))
 
+        # X軸タイトルを右端に配置
+        self._align_xlabels_to_right()
+
+    def _align_xlabels_to_right(self):
+        """X軸ラベルを各グラフの右端に寄せる"""
+        for ax in self.axes:
+            ax.xaxis.label.set_horizontalalignment('right')
+            ax.xaxis.set_label_coords(1.0, -0.08)
+
     def _setup_control_buttons(self):
         """コントロールボタンの設定"""
         # 1つのボタンで切り替える方式
@@ -264,6 +288,48 @@ class RedisPlotter:
         
         # ボタンのイベントハンドラを設定
         self.control_button.on_clicked(self._toggle_animation)
+
+    def _connect_resize_handler(self):
+        """ウィンドウリサイズ時にフォントを調整するイベントを登録"""
+        self.fig.canvas.mpl_connect('resize_event', self._on_resize)
+
+    def _on_resize(self, _event):
+        self._apply_responsive_fonts()
+
+    def _apply_responsive_fonts(self):
+        """図の面積変化に合わせて文字サイズを自動調整"""
+        w, h = self.fig.get_size_inches()
+        bw, bh = self.base_fig_size
+        if bw <= 0 or bh <= 0:
+            scale = 1.0
+        else:
+            # 面積比の平方根でスケール（縦横どちらかだけ極端でも過敏になりにくい）
+            scale = np.sqrt((w * h) / (bw * bh))
+
+        # 読みやすさを保つための下限/上限
+        scale = float(np.clip(scale, 0.6, 1.4))
+
+        title_fs = self.base_font_sizes['title'] * scale
+        label_fs = self.base_font_sizes['label'] * scale
+        tick_fs = self.base_font_sizes['tick'] * scale
+        legend_fs = self.base_font_sizes['legend'] * scale
+        button_fs = self.base_font_sizes['button'] * scale
+
+        for ax in self.axes:
+            ax.title.set_fontsize(title_fs)
+            ax.xaxis.label.set_fontsize(label_fs)
+            ax.yaxis.label.set_fontsize(label_fs)
+            ax.tick_params(axis='both', labelsize=tick_fs)
+
+            legend = ax.get_legend()
+            if legend is not None:
+                for text in legend.get_texts():
+                    text.set_fontsize(legend_fs)
+
+        if hasattr(self, 'control_button') and self.control_button is not None:
+            self.control_button.label.set_fontsize(button_fs)
+
+        self.fig.canvas.draw_idle()
 
     def _toggle_animation(self, event):
         """アニメーションの停止・再開を切り替え"""
