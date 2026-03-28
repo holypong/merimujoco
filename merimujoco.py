@@ -256,6 +256,14 @@ def motor_controller_thread():
     # foot_body_idを取得
     l_foot_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "l_foot")
     r_foot_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "r_foot")
+    # 左右の股関節ヨー軸中心（body原点）を取得
+    l_hip_yaw_center_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "l_hipjoint_upper")
+    r_hip_yaw_center_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "r_hipjoint_upper")
+
+    # 足先XYZの起動時キャリブレーション（初回値をゼロ基準として差し引く）
+    foot_xyz_calibrated = False
+    l_foot_offset_mm = np.zeros(3, dtype=float)
+    r_foot_offset_mm = np.zeros(3, dtype=float)
 
     while True:
         # 時間を更新
@@ -463,20 +471,41 @@ def motor_controller_thread():
                 mdata[14] = round(imu_mjc.orientation.z, 4)   # yaw(deg)
 
                 # 足先XYZ位置をmm換算で書き込む
-                # X/Y: ロボット中心(c_chest)からの相対位置, Z: 地面からの高さ(ワールドZ)
+                # X/Y: 左右それぞれの股関節ヨー軸中心からの相対位置, Z: 地面からの高さ(ワールドZ)
                 with sim_lock:
                     xpos = np.array(data.xpos)  # shape=(nbody, 3)
-                    origin = xpos[chest_body_id]           # ロボット中心（ワールド座標）
-                    lf_xy = (xpos[l_foot_body_id] - origin)[:2] * 1000.0  # X/Y 相対 m -> mm
-                    rf_xy = (xpos[r_foot_body_id] - origin)[:2] * 1000.0
-                    lf_z  = xpos[l_foot_body_id][2] * 1000.0  # Z 地面からの高さ m -> mm
-                    rf_z  = xpos[r_foot_body_id][2] * 1000.0
-                mdata[47] = round(float(lf_xy[0]), 2)  # l_foot_x (mm, 中心相対)
-                mdata[48] = round(float(lf_xy[1]), 2)  # l_foot_y (mm, 中心相対)
-                mdata[49] = round(float(lf_z),     2)  # l_foot_z (mm, 地面からの高さ)
-                mdata[77] = round(float(rf_xy[0]), 2)  # r_foot_x (mm, 中心相対)
-                mdata[78] = round(float(rf_xy[1]), 2)  # r_foot_y (mm, 中心相対)
-                mdata[79] = round(float(rf_z),     2)  # r_foot_z (mm, 地面からの高さ)
+                    l_hip_origin = xpos[l_hip_yaw_center_body_id]
+                    r_hip_origin = xpos[r_hip_yaw_center_body_id]
+                    l_foot_raw_mm = np.array([
+                        (xpos[l_foot_body_id][0] - l_hip_origin[0]) * 1000.0,
+                        (xpos[l_foot_body_id][1] - l_hip_origin[1]) * 1000.0,
+                        xpos[l_foot_body_id][2] * 1000.0,
+                    ], dtype=float)
+                    r_foot_raw_mm = np.array([
+                        (xpos[r_foot_body_id][0] - r_hip_origin[0]) * 1000.0,
+                        (xpos[r_foot_body_id][1] - r_hip_origin[1]) * 1000.0,
+                        xpos[r_foot_body_id][2] * 1000.0,
+                    ], dtype=float)
+
+                if not foot_xyz_calibrated:
+                    l_foot_offset_mm = l_foot_raw_mm.copy()
+                    r_foot_offset_mm = r_foot_raw_mm.copy()
+                    foot_xyz_calibrated = True
+                    logger.info(
+                        "Foot XYZ calibration done. L offset(mm)=(%.2f, %.2f, %.2f), R offset(mm)=(%.2f, %.2f, %.2f)",
+                        l_foot_offset_mm[0], l_foot_offset_mm[1], l_foot_offset_mm[2],
+                        r_foot_offset_mm[0], r_foot_offset_mm[1], r_foot_offset_mm[2],
+                    )
+
+                l_foot_cal_mm = l_foot_raw_mm - l_foot_offset_mm
+                r_foot_cal_mm = r_foot_raw_mm - r_foot_offset_mm
+
+                mdata[47] = round(float(l_foot_cal_mm[0]), 2)  # l_foot_x (mm, 左股関節ヨー軸中心相対・ゼロ補正後)
+                mdata[48] = round(float(l_foot_cal_mm[1]), 2)  # l_foot_y (mm, 左股関節ヨー軸中心相対・ゼロ補正後)
+                mdata[49] = round(float(l_foot_cal_mm[2]), 2)  # l_foot_z (mm, 地面高さ・ゼロ補正後)
+                mdata[77] = round(float(r_foot_cal_mm[0]), 2)  # r_foot_x (mm, 右股関節ヨー軸中心相対・ゼロ補正後)
+                mdata[78] = round(float(r_foot_cal_mm[1]), 2)  # r_foot_y (mm, 右股関節ヨー軸中心相対・ゼロ補正後)
+                mdata[79] = round(float(r_foot_cal_mm[2]), 2)  # r_foot_z (mm, 地面高さ・ゼロ補正後)
 
                 # FLG_JOINT_TO_REDISがTrueの場合、関節角度をRedisに送信
                 if FLG_JOINT_TO_REDIS:
