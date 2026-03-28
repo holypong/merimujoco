@@ -236,9 +236,9 @@ class RedisPlotter:
         self.right_lines = {}
         self.axes[1].set_title('Right Foot Position')
         self.axes[1].set_xlabel('Time (s)')
-        self.axes[1].set_ylabel('Position')
+        self.axes[1].set_ylabel('Position (m)')
         self.axes[1].grid(True, alpha=0.3)
-        self.axes[1].set_ylim(-100.0, 100.0)  # Adjust based on expected foot position range
+        self.axes[1].set_ylim(-0.1, 0.1)  # 旧mmレンジ[-100,100]をmへ換算
         
         right_foot_joints = ["r_foot_x", "r_foot_y", "r_foot_z"]
         foot_colors = ["red", "green", "blue"]
@@ -250,9 +250,9 @@ class RedisPlotter:
         self.left_lines = {}
         self.axes[2].set_title('Left Foot Position')
         self.axes[2].set_xlabel('Time (s)')
-        self.axes[2].set_ylabel('Position')
+        self.axes[2].set_ylabel('Position (m)')
         self.axes[2].grid(True, alpha=0.3)
-        self.axes[2].set_ylim(-100.0, 100.0)  # Adjust based on expected foot position range
+        self.axes[2].set_ylim(-0.1, 0.1)  # 旧mmレンジ[-100,100]をmへ換算
         
         left_foot_joints = ["l_foot_x", "l_foot_y", "l_foot_z"]
         for i, joint in enumerate(left_foot_joints):
