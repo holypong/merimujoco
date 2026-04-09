@@ -261,10 +261,53 @@ def motor_controller_thread():
     l_hip_yaw_center_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "l_hipjoint_upper")
     r_hip_yaw_center_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "r_hipjoint_upper")
 
-    # 足先XYZの起動時キャリブレーション（初回値をゼロ基準として差し引く）
-    foot_xyz_calibrated = False
-    l_foot_offset_m = np.zeros(3, dtype=float)
-    r_foot_offset_m = np.zeros(3, dtype=float)
+    # 足底面のZオフセット（body原点→足底面最下点）をコリジョンジオメトリから取得
+    def get_foot_sole_z_offset(foot_body_id):
+        min_z = 0.0
+        for gid in range(model.ngeom):
+            if model.geom_bodyid[gid] != foot_body_id:
+                continue
+            geom_type = model.geom_type[gid]
+            pos_z = model.geom_pos[gid][2]
+            sz = model.geom_size[gid]
+            if geom_type == mujoco.mjtGeom.mjGEOM_BOX:
+                sole_z = pos_z - sz[2]
+            elif geom_type == mujoco.mjtGeom.mjGEOM_SPHERE:
+                sole_z = pos_z - sz[0]
+            elif geom_type in (mujoco.mjtGeom.mjGEOM_CAPSULE, mujoco.mjtGeom.mjGEOM_CYLINDER):
+                sole_z = pos_z - sz[0]
+            else:
+                continue
+            if sole_z < min_z:
+                min_z = sole_z
+        return min_z
+
+    l_foot_sole_z = get_foot_sole_z_offset(l_foot_body_id)
+    r_foot_sole_z = get_foot_sole_z_offset(r_foot_body_id)
+    logger.info("Foot sole Z offset from body origin: L=%.6f m, R=%.6f m", l_foot_sole_z, r_foot_sole_z)
+
+    # 足先Zオフセット：起動時の初期姿勢（地面接触状態）を0基準とする
+    def capture_foot_offsets():
+        with sim_lock:
+            mujoco.mj_forward(model, data)
+            xpos = np.array(data.xpos)
+        l_hip = xpos[l_hip_yaw_center_body_id]
+        r_hip = xpos[r_hip_yaw_center_body_id]
+        l_off = np.array([
+            xpos[l_foot_body_id][0] - l_hip[0],
+            xpos[l_foot_body_id][1] - l_hip[1],
+            xpos[l_foot_body_id][2],
+        ], dtype=float)
+        r_off = np.array([
+            xpos[r_foot_body_id][0] - r_hip[0],
+            xpos[r_foot_body_id][1] - r_hip[1],
+            xpos[r_foot_body_id][2],
+        ], dtype=float)
+        logger.info("Foot XYZ offset captured. L=(%.6f, %.6f, %.6f), R=(%.6f, %.6f, %.6f)",
+            l_off[0], l_off[1], l_off[2], r_off[0], r_off[1], r_off[2])
+        return l_off, r_off
+
+    l_foot_offset_m, r_foot_offset_m = capture_foot_offsets()
 
     while True:
         # 時間を更新
@@ -278,6 +321,7 @@ def motor_controller_thread():
                 mujoco.mj_resetData(model, data)
                 mujoco.mj_forward(model, data)
             FLG_RESET_REQUEST = False
+            l_foot_offset_m, r_foot_offset_m = capture_foot_offsets()
             logger.info("MuJoCo reset completed")
 
         if FLG_SET_RCVD and elapsed >= MOT_START_TIME:  # データ受信フラグが立っていて、開始時間を超えたら
@@ -435,7 +479,11 @@ def motor_controller_thread():
                                 wx, wy, wz = seg[3:6]
                             else:
                                 wx, wy, wz = 0.0, 0.0, 0.0
-                        ang_vel = Vector3(math.degrees(float(wx)), math.degrees(float(wy)), math.degrees(float(wz)))
+
+                        # chest_mat: ワールド→c_chest の回転行列　を使って、ワールド座標系の角速度をc_chest座標系に変換
+                        omega_world = np.array([wx, wy, wz])            # ワールド座標系の角速度
+                        omega_local = chest_mat.T @ omega_world         # c_chest座標系の角速度
+                        ang_vel = Vector3(math.degrees(float(omega_local[0])), math.degrees(float(omega_local[1])), math.degrees(float(omega_local[2])))
                     except Exception as e:
                         logger.error(f"Angular velocity error: {e}")
                         ang_vel = Vector3(0.0, 0.0, 0.0)
@@ -480,33 +528,20 @@ def motor_controller_thread():
                     l_foot_raw_m = np.array([
                         (xpos[l_foot_body_id][0] - l_hip_origin[0]),
                         (xpos[l_foot_body_id][1] - l_hip_origin[1]),
-                        xpos[l_foot_body_id][2],
+                        xpos[l_foot_body_id][2] + l_foot_sole_z,  # body原点 + 足底オフセット = 床からの足底高さ
                     ], dtype=float)
                     r_foot_raw_m = np.array([
                         (xpos[r_foot_body_id][0] - r_hip_origin[0]),
                         (xpos[r_foot_body_id][1] - r_hip_origin[1]),
-                        xpos[r_foot_body_id][2],
+                        xpos[r_foot_body_id][2] + r_foot_sole_z,  # body原点 + 足底オフセット = 床からの足底高さ
                     ], dtype=float)
-
-                if not foot_xyz_calibrated:
-                    l_foot_offset_m = l_foot_raw_m.copy()
-                    r_foot_offset_m = r_foot_raw_m.copy()
-                    foot_xyz_calibrated = True
-                    logger.info(
-                        "Foot XYZ calibration done. L offset(m)=(%.6f, %.6f, %.6f), R offset(m)=(%.6f, %.6f, %.6f)",
-                        l_foot_offset_m[0], l_foot_offset_m[1], l_foot_offset_m[2],
-                        r_foot_offset_m[0], r_foot_offset_m[1], r_foot_offset_m[2],
-                    )
 
                 l_foot_cal_m = l_foot_raw_m - l_foot_offset_m
                 r_foot_cal_m = r_foot_raw_m - r_foot_offset_m
 
-                mdata[47] = round(float(l_foot_cal_m[0]), FOOT_POS_DECIMALS)  # l_foot_x (m, 左股関節ヨー軸中心相対・ゼロ補正後)
-                mdata[48] = round(float(l_foot_cal_m[1]), FOOT_POS_DECIMALS)  # l_foot_y (m, 左股関節ヨー軸中心相対・ゼロ補正後)
-                mdata[49] = round(float(l_foot_cal_m[2]), FOOT_POS_DECIMALS)  # l_foot_z (m, 地面高さ・ゼロ補正後)
-                mdata[77] = round(float(r_foot_cal_m[0]), FOOT_POS_DECIMALS)  # r_foot_x (m, 右股関節ヨー軸中心相対・ゼロ補正後)
+                mdata[47] = round(float(l_foot_cal_m[0]), FOOT_POS_DECIMALS)  # l_foot_x (m, 左股関節ヨー軸中心相対4m, 右股関節ヨー軸中心相対・ゼロ補正後)
                 mdata[78] = round(float(r_foot_cal_m[1]), FOOT_POS_DECIMALS)  # r_foot_y (m, 右股関節ヨー軸中心相対・ゼロ補正後)
-                mdata[79] = round(float(r_foot_cal_m[2]), FOOT_POS_DECIMALS)  # r_foot_z (m, 地面高さ・ゼロ補正後)
+                mdata[79] = round(float(r_foot_raw_m[2]), FOOT_POS_DECIMALS)  # r_foot_z (m, 床面からの絶対高さ)
 
                 # FLG_JOINT_TO_REDISがTrueの場合、関節角度をRedisに送信
                 if FLG_JOINT_TO_REDIS:
