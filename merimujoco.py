@@ -539,9 +539,12 @@ def motor_controller_thread():
                 l_foot_cal_m = l_foot_raw_m - l_foot_offset_m
                 r_foot_cal_m = r_foot_raw_m - r_foot_offset_m
 
-                mdata[47] = round(float(l_foot_cal_m[0]), FOOT_POS_DECIMALS)  # l_foot_x (m, 左股関節ヨー軸中心相対4m, 右股関節ヨー軸中心相対・ゼロ補正後)
+                mdata[47] = round(float(l_foot_cal_m[0]), FOOT_POS_DECIMALS)  # l_foot_x (m, 左股関節ヨー軸中心相対・ゼロ補正後)
+                mdata[48] = round(float(l_foot_cal_m[1]), FOOT_POS_DECIMALS)  # l_foot_y (m, 左股関節ヨー軸中心相対・ゼロ補正後)
+                mdata[49] = round(float(l_foot_cal_m[2]), FOOT_POS_DECIMALS)  # l_foot_z (m, 床面からの高さ・ゼロ補正後)
+                mdata[77] = round(float(r_foot_cal_m[0]), FOOT_POS_DECIMALS)  # r_foot_x (m, 右股関節ヨー軸中心相対・ゼロ補正後)
                 mdata[78] = round(float(r_foot_cal_m[1]), FOOT_POS_DECIMALS)  # r_foot_y (m, 右股関節ヨー軸中心相対・ゼロ補正後)
-                mdata[79] = round(float(r_foot_raw_m[2]), FOOT_POS_DECIMALS)  # r_foot_z (m, 床面からの絶対高さ)
+                mdata[79] = round(float(r_foot_cal_m[2]), FOOT_POS_DECIMALS)  # r_foot_z (m, 床面からの高さ・ゼロ補正後)
 
                 # FLG_JOINT_TO_REDISがTrueの場合、関節角度をRedisに送信
                 if FLG_JOINT_TO_REDIS:
