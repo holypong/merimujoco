@@ -293,15 +293,21 @@ def motor_controller_thread():
             xpos = np.array(data.xpos)
         l_hip = xpos[l_hip_yaw_center_body_id]
         r_hip = xpos[r_hip_yaw_center_body_id]
+
+        logger.info("Foot XYZ orig captured. L=(%.6f, %.6f, %.6f), R=(%.6f, %.6f, %.6f)",
+            xpos[l_foot_body_id][0], xpos[l_foot_body_id][1], xpos[l_foot_body_id][2],
+            xpos[r_foot_body_id][0], xpos[r_foot_body_id][1], xpos[r_foot_body_id][2])
+
+
         l_off = np.array([
             xpos[l_foot_body_id][0] - l_hip[0],
             xpos[l_foot_body_id][1] - l_hip[1],
-            xpos[l_foot_body_id][2],
+            xpos[l_foot_body_id][2] + l_foot_sole_z,
         ], dtype=float)
         r_off = np.array([
             xpos[r_foot_body_id][0] - r_hip[0],
             xpos[r_foot_body_id][1] - r_hip[1],
-            xpos[r_foot_body_id][2],
+            xpos[r_foot_body_id][2] + r_foot_sole_z,
         ], dtype=float)
         logger.info("Foot XYZ offset captured. L=(%.6f, %.6f, %.6f), R=(%.6f, %.6f, %.6f)",
             l_off[0], l_off[1], l_off[2], r_off[0], r_off[1], r_off[2])
