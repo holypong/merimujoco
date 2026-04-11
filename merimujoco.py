@@ -52,6 +52,7 @@ RESET_CMD_COOLDOWN_SEC = 0.3  # 連続リセット抑止の最短間隔
 viewer = None  # MuJoCo viewer object
 
 MOT_START_TIME = 1.0  # 開始時間
+FOOT_CALIB_DELAY = 1.5  # 起動・リセット後、接地整定を待ってからオフセットキャプチャする遅延時間(s)
 ACTUATOR_FORCE_SCALE = 1.0  # 実機寄りにトルク感を上げる係数
 FOOT_POS_DECIMALS = 6  # 足先位置(m)の小数点桁数
 
@@ -294,7 +295,7 @@ def motor_controller_thread():
         l_hip = xpos[l_hip_yaw_center_body_id]
         r_hip = xpos[r_hip_yaw_center_body_id]
 
-        logger.info("Foot XYZ orig captured. L=(%.6f, %.6f, %.6f), R=(%.6f, %.6f, %.6f)",
+        logger.info("Foot XYZ orign captured. L=(%.6f, %.6f, %.6f), R=(%.6f, %.6f, %.6f)",
             xpos[l_foot_body_id][0], xpos[l_foot_body_id][1], xpos[l_foot_body_id][2],
             xpos[r_foot_body_id][0], xpos[r_foot_body_id][1], xpos[r_foot_body_id][2])
 
@@ -313,12 +314,21 @@ def motor_controller_thread():
             l_off[0], l_off[1], l_off[2], r_off[0], r_off[1], r_off[2])
         return l_off, r_off
 
-    l_foot_offset_m, r_foot_offset_m = capture_foot_offsets()
+    # 足先オフセットは起動・リセット後 FOOT_CALIB_DELAY 秒後に整定してからキャプチャする
+    l_foot_offset_m = np.zeros(3)
+    r_foot_offset_m = np.zeros(3)
+    foot_offset_captured = False
+    foot_calib_due_at = FOOT_CALIB_DELAY  # 次回キャプチャ予定時刻(elapsed基準)
 
     while True:
         # 時間を更新
         total_frames += 1
         elapsed = time.time() - start_time
+
+        # 足先オフセットキャプチャ（起動・リセット後 FOOT_CALIB_DELAY 秒経過してから）
+        if not foot_offset_captured and elapsed >= foot_calib_due_at:
+            l_foot_offset_m, r_foot_offset_m = capture_foot_offsets()
+            foot_offset_captured = True
 
         # リセット要求がある場合はリセットを実行
         if FLG_RESET_REQUEST:
@@ -327,7 +337,8 @@ def motor_controller_thread():
                 mujoco.mj_resetData(model, data)
                 mujoco.mj_forward(model, data)
             FLG_RESET_REQUEST = False
-            l_foot_offset_m, r_foot_offset_m = capture_foot_offsets()
+            foot_offset_captured = False
+            foot_calib_due_at = elapsed + FOOT_CALIB_DELAY
             logger.info("MuJoCo reset completed")
 
         if FLG_SET_RCVD and elapsed >= MOT_START_TIME:  # データ受信フラグが立っていて、開始時間を超えたら
@@ -533,24 +544,25 @@ def motor_controller_thread():
                     r_hip_origin = xpos[r_hip_yaw_center_body_id]
                     l_foot_raw_m = np.array([
                         (xpos[l_foot_body_id][0] - l_hip_origin[0]),
-                        (xpos[l_foot_body_id][1] - l_hip_origin[1]),
+                        (xpos[l_foot_body_id][1] - l_hip_origin[1])/2,  # 左右の股関節ヨー軸中心からの相対位置はY方向に半分に縮める（実機の脚幅を考慮して補正）
                         xpos[l_foot_body_id][2] + l_foot_sole_z,  # body原点 + 足底オフセット = 床からの足底高さ
                     ], dtype=float)
                     r_foot_raw_m = np.array([
                         (xpos[r_foot_body_id][0] - r_hip_origin[0]),
-                        (xpos[r_foot_body_id][1] - r_hip_origin[1]),
+                        (xpos[r_foot_body_id][1] - r_hip_origin[1])/2,  # 左右の股関節ヨー軸中心からの相対位置はY方向に半分に縮める（実機の脚幅を考慮して補正）
                         xpos[r_foot_body_id][2] + r_foot_sole_z,  # body原点 + 足底オフセット = 床からの足底高さ
                     ], dtype=float)
 
-                l_foot_cal_m = l_foot_raw_m - l_foot_offset_m
-                r_foot_cal_m = r_foot_raw_m - r_foot_offset_m
+                if foot_offset_captured:
+                    l_foot_cal_m = l_foot_raw_m - l_foot_offset_m
+                    r_foot_cal_m = r_foot_raw_m - r_foot_offset_m
 
-                mdata[47] = round(float(l_foot_cal_m[0]), FOOT_POS_DECIMALS)  # l_foot_x (m, 左股関節ヨー軸中心相対・ゼロ補正後)
-                mdata[48] = round(float(l_foot_cal_m[1]), FOOT_POS_DECIMALS)  # l_foot_y (m, 左股関節ヨー軸中心相対・ゼロ補正後)
-                mdata[49] = round(float(l_foot_cal_m[2]), FOOT_POS_DECIMALS)  # l_foot_z (m, 床面からの高さ・ゼロ補正後)
-                mdata[77] = round(float(r_foot_cal_m[0]), FOOT_POS_DECIMALS)  # r_foot_x (m, 右股関節ヨー軸中心相対・ゼロ補正後)
-                mdata[78] = round(float(r_foot_cal_m[1]), FOOT_POS_DECIMALS)  # r_foot_y (m, 右股関節ヨー軸中心相対・ゼロ補正後)
-                mdata[79] = round(float(r_foot_cal_m[2]), FOOT_POS_DECIMALS)  # r_foot_z (m, 床面からの高さ・ゼロ補正後)
+                    mdata[47] = round(float(l_foot_cal_m[0]), FOOT_POS_DECIMALS)  # l_foot_x (m, 左股関節ヨー軸中心相対・ゼロ補正後)
+                    mdata[48] = round(float(l_foot_cal_m[1]), FOOT_POS_DECIMALS)  # l_foot_y (m, 左股関節ヨー軸中心相対・ゼロ補正後)
+                    mdata[49] = round(float(l_foot_cal_m[2]), FOOT_POS_DECIMALS)  # l_foot_z (m, 床面からの高さ・ゼロ補正後)
+                    mdata[77] = round(float(r_foot_cal_m[0]), FOOT_POS_DECIMALS)  # r_foot_x (m, 右股関節ヨー軸中心相対・ゼロ補正後)
+                    mdata[78] = round(float(r_foot_cal_m[1]), FOOT_POS_DECIMALS)  # r_foot_y (m, 右股関節ヨー軸中心相対・ゼロ補正後)
+                    mdata[79] = round(float(r_foot_cal_m[2]), FOOT_POS_DECIMALS)  # r_foot_z (m, 床面からの高さ・ゼロ補正後)
 
                 # FLG_JOINT_TO_REDISがTrueの場合、関節角度をRedisに送信
                 if FLG_JOINT_TO_REDIS:
