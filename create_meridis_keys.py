@@ -51,7 +51,7 @@ def main():
         return
 
     # 作成するキー
-    keys = ['meridis_sim_pub', 'meridis_calc_pub', 'meridis_console_pub', 'meridis_mgr_pub', 'meridis_mcp_pub']
+    keys = ['meridis_sim_pub', 'meridis_calc_pub', 'meridis_console_pub', 'meridis_mgr_pub', 'meridis_ai_pub']
 
     for key in keys:
         print(f"Creating key: {key}")
