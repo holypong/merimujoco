@@ -52,7 +52,8 @@ RESET_CMD_COOLDOWN_SEC = 0.3  # 連続リセット抑止の最短間隔
 viewer = None  # MuJoCo viewer object
 
 MOT_START_TIME = 1.0  # 開始時間
-FOOT_CALIB_DELAY = 1.5  # 起動・リセット後、接地整定を待ってからオフセットキャプチャする遅延時間(s)
+FOOT_CALIB_DELAY = 1.5  # 起動・リセット後、接地整定を待ってからオフセットキャプチャする遅延時間(s) ※時間遅延方式は現在無効化中
+USE_CONTACT_CALIB = True  # Trueのとき接地contact検出でキャリブ、FalseのときFOOT_CALIB_DELAY秒待機
 ACTUATOR_FORCE_SCALE = 1.0  # 実機寄りにトルク感を上げる係数
 FOOT_POS_DECIMALS = 6  # 足先位置(m)の小数点桁数
 
@@ -314,6 +315,17 @@ def motor_controller_thread():
             l_off[0], l_off[1], l_off[2], r_off[0], r_off[1], r_off[2])
         return l_off, r_off
 
+    # 足のgeomが床と接触しているか判定
+    l_foot_geom_ids = [g for g in range(model.ngeom) if model.geom_bodyid[g] == l_foot_body_id]
+    r_foot_geom_ids = [g for g in range(model.ngeom) if model.geom_bodyid[g] == r_foot_body_id]
+
+    def is_foot_grounded(foot_geom_ids):
+        for i in range(data.ncon):
+            c = data.contact[i]
+            if c.geom1 in foot_geom_ids or c.geom2 in foot_geom_ids:
+                return True
+        return False
+
     # 足先オフセットは起動・リセット後 FOOT_CALIB_DELAY 秒後に整定してからキャプチャする
     l_foot_offset_m = np.zeros(3)
     r_foot_offset_m = np.zeros(3)
@@ -325,10 +337,19 @@ def motor_controller_thread():
         total_frames += 1
         elapsed = time.time() - start_time
 
-        # 足先オフセットキャプチャ（起動・リセット後 FOOT_CALIB_DELAY 秒経過してから）
-        if not foot_offset_captured and elapsed >= foot_calib_due_at:
-            l_foot_offset_m, r_foot_offset_m = capture_foot_offsets()
-            foot_offset_captured = True
+        # 足先オフセットキャプチャ
+        if not foot_offset_captured:
+            if USE_CONTACT_CALIB:
+                # contact検出方式: 両足が接地したタイミングでキャプチャ
+                if is_foot_grounded(l_foot_geom_ids) and is_foot_grounded(r_foot_geom_ids):
+                    logger.info("Both feet grounded (contact detected). Capturing foot offsets.")
+                    l_foot_offset_m, r_foot_offset_m = capture_foot_offsets()
+                    foot_offset_captured = True
+            else:
+                # 時間遅延方式: FOOT_CALIB_DELAY 秒経過してからキャプチャ
+                if elapsed >= foot_calib_due_at:
+                    l_foot_offset_m, r_foot_offset_m = capture_foot_offsets()
+                    foot_offset_captured = True
 
         # リセット要求がある場合はリセットを実行
         if FLG_RESET_REQUEST:
