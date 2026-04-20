@@ -55,7 +55,7 @@ MOT_START_TIME = 1.0  # 開始時間
 FOOT_CALIB_DELAY = 1.5  # 起動・リセット後、接地整定を待ってからオフセットキャプチャする遅延時間(s) ※時間遅延方式は現在無効化中
 USE_CONTACT_CALIB = True  # Trueのとき接地contact検出でキャリブ、FalseのときFOOT_CALIB_DELAY秒待機
 ACTUATOR_FORCE_SCALE = 1.0  # 実機寄りにトルク感を上げる係数
-FOOT_POS_DECIMALS = 6  # 足先位置(m)の小数点桁数
+FOOT_POS_DECIMALS = 4  # 足先・手先位置(m)の小数点桁数
 
 # Redisサーバー設定（デフォルト値）
 REDIS_HOST = "127.0.0.1"
@@ -192,7 +192,20 @@ parser.add_argument('--redis',
                     type=str, 
                     default='redis.json',
                     help='Redis configuration JSON file (default: redis.json)')
+parser.add_argument('--getfoot',
+                    type=lambda x: x.lower() != 'false',
+                    default=True,
+                    metavar='BOOL',
+                    help='Write foot positions to mdata (default: true)')
+parser.add_argument('--gethand',
+                    type=lambda x: x.lower() != 'false',
+                    default=False,
+                    metavar='BOOL',
+                    help='Write hand positions to mdata[44-46,74-76] (default: false)')
 args = parser.parse_args()
+
+FLG_GET_FOOT = args.getfoot  # 両足位置書き込みフラグ
+FLG_GET_HAND = args.gethand  # 両手位置書き込みフラグ
 
 # Redis設定の読み込み（data_flowの設定も含む）
 load_redis_config(args.redis)
@@ -259,6 +272,33 @@ def motor_controller_thread():
     # foot_body_idを取得
     l_foot_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "l_foot")
     r_foot_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "r_foot")
+    # 左右の手先body IDを取得
+    l_hand_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "l_arm_lower")
+    r_hand_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "r_arm_lower")
+
+    # 手先端のローカルオフセットをcollision geom（カプセル）から取得
+    # カプセルのZ軸先端 = geom_pos_z - half_length - radius
+    def get_hand_tip_local_offset(hand_body_id):
+        tip_local = np.zeros(3)
+        min_z = 0.0
+        for gid in range(model.ngeom):
+            if model.geom_bodyid[gid] != hand_body_id:
+                continue
+            if model.geom_type[gid] not in (mujoco.mjtGeom.mjGEOM_CAPSULE, mujoco.mjtGeom.mjGEOM_CYLINDER):
+                continue
+            pos = model.geom_pos[gid]       # ローカル座標のgeom中心
+            sz  = model.geom_size[gid]      # [radius, half_length, ...]
+            tip_z = pos[2] - sz[1] - sz[0]  # 先端Z（下方向）
+            if tip_z < min_z:
+                min_z = tip_z
+                tip_local = np.array([pos[0], pos[1], tip_z])
+        return tip_local
+
+    l_hand_tip_local = get_hand_tip_local_offset(l_hand_body_id)
+    r_hand_tip_local = get_hand_tip_local_offset(r_hand_body_id)
+    logger.info("Hand tip local offset: L=(%.4f, %.4f, %.4f), R=(%.4f, %.4f, %.4f)",
+        l_hand_tip_local[0], l_hand_tip_local[1], l_hand_tip_local[2],
+        r_hand_tip_local[0], r_hand_tip_local[1], r_hand_tip_local[2])
     # 左右の股関節ヨー軸中心（body原点）を取得
     l_hip_yaw_center_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "l_hipjoint_upper")
     r_hip_yaw_center_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "r_hipjoint_upper")
@@ -574,7 +614,7 @@ def motor_controller_thread():
                         xpos[r_foot_body_id][2] + r_foot_sole_z,  # body原点 + 足底オフセット = 床からの足底高さ
                     ], dtype=float)
 
-                if foot_offset_captured:
+                if foot_offset_captured and FLG_GET_FOOT:
                     l_foot_cal_m = l_foot_raw_m - l_foot_offset_m
                     r_foot_cal_m = r_foot_raw_m - r_foot_offset_m
 
@@ -584,6 +624,29 @@ def motor_controller_thread():
                     mdata[77] = round(float(r_foot_cal_m[0]), FOOT_POS_DECIMALS)  # r_foot_x (m, 右股関節ヨー軸中心相対・ゼロ補正後)
                     mdata[78] = round(float(r_foot_cal_m[1]), FOOT_POS_DECIMALS)  # r_foot_y (m, 右股関節ヨー軸中心相対・ゼロ補正後)
                     mdata[79] = round(float(r_foot_cal_m[2]), FOOT_POS_DECIMALS)  # r_foot_z (m, 床面からの高さ・ゼロ補正後)
+
+                # 手先端XYZ位置をm単位で書き込む（カプセルgeom先端→ワールド座標変換）
+                if FLG_GET_HAND:
+                    with sim_lock:
+                        xpos_w = np.array(data.xpos)   # shape=(nbody, 3)
+                        xmat_w = np.array(data.xmat)   # shape=(nbody, 9) or (nbody*9,)
+                    # 回転行列を取得
+                    if xmat_w.ndim == 2 and xmat_w.shape[1] == 9:
+                        l_rot = xmat_w[l_hand_body_id].reshape(3, 3)
+                        r_rot = xmat_w[r_hand_body_id].reshape(3, 3)
+                    else:
+                        flat = xmat_w.flatten()
+                        l_rot = flat[l_hand_body_id*9:(l_hand_body_id+1)*9].reshape(3, 3)
+                        r_rot = flat[r_hand_body_id*9:(r_hand_body_id+1)*9].reshape(3, 3)
+                    # body原点 + 回転行列 × ローカルオフセット = ワールド座標の手先端
+                    l_tip_world = xpos_w[l_hand_body_id] + l_rot @ l_hand_tip_local
+                    r_tip_world = xpos_w[r_hand_body_id] + r_rot @ r_hand_tip_local
+                    mdata[44] = round(float(l_tip_world[0]), FOOT_POS_DECIMALS)  # l_hand_x (m)
+                    mdata[45] = round(float(l_tip_world[1]), FOOT_POS_DECIMALS)  # l_hand_y (m)
+                    mdata[46] = round(float(l_tip_world[2]), FOOT_POS_DECIMALS)  # l_hand_z (m)
+                    mdata[74] = round(float(r_tip_world[0]), FOOT_POS_DECIMALS)  # r_hand_x (m)
+                    mdata[75] = round(float(r_tip_world[1]), FOOT_POS_DECIMALS)  # r_hand_y (m)
+                    mdata[76] = round(float(r_tip_world[2]), FOOT_POS_DECIMALS)  # r_hand_z (m)
 
                 # FLG_JOINT_TO_REDISがTrueの場合、関節角度をRedisに送信
                 if FLG_JOINT_TO_REDIS:
