@@ -204,11 +204,28 @@ parser.add_argument('--view',
                     default=None,
                     metavar='MODE',
                     help='Camera view mode: fpv (first-person view from head center)')
+parser.add_argument('--sphere',
+                    type=str,
+                    default=None,
+                    metavar='X,Y,Z',
+                    help='Touch sphere position in meters (e.g. --sphere 0.05,0.0,0.2)')
 args = parser.parse_args()
 
 FLG_GET_FOOT = args.getfoot  # 両足位置書き込みフラグ
 FLG_GET_HAND = args.gethand  # 両手位置書き込みフラグ
 VIEW_MODE = args.view        # カメラビューモード
+
+# --sphere オプションの解析
+SPHERE_POS = None
+if args.sphere:
+    try:
+        vals = [float(v) for v in args.sphere.split(',')]
+        if len(vals) != 3:
+            raise ValueError("3つの値が必要です")
+        SPHERE_POS = vals
+    except ValueError as e:
+        print(f"[ERROR] --sphere の形式が不正です ({e})。例: --sphere 0.05,0.0,0.2")
+        sys.exit(1)
 
 # Redis設定の読み込み（data_flowの設定も含む）
 load_redis_config(args.redis)
@@ -242,6 +259,24 @@ if VIEW_MODE == 'fpv':
         logger.info(f"--view fpv: using fixed camera 'head_fpv' (id={FPV_CAM_ID})")
 
 
+# タッチ検出球のgeom ID
+TOUCH_SPHERE_GEOM_ID = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, "touch_sphere")
+touch_sphere_visible = TOUCH_SPHERE_GEOM_ID >= 0
+if TOUCH_SPHERE_GEOM_ID < 0:
+    logger.warning("touch_sphere geom not found in model")
+
+# --sphere オプションで球の位置を上書き、省略時は非表示
+if TOUCH_SPHERE_GEOM_ID >= 0:
+    if SPHERE_POS is not None:
+        sphere_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "touch_sphere_body")
+        if sphere_body_id >= 0:
+            model.body_pos[sphere_body_id] = SPHERE_POS
+            logger.info(f"touch_sphere position set to {SPHERE_POS}")
+    else:
+        model.geom_rgba[TOUCH_SPHERE_GEOM_ID, 3] = 0.0
+        touch_sphere_visible = False
+        logger.info("touch_sphere hidden (no --sphere option)")
+
 # --- 起動時に強制的に物理パラメータを上書き ---
 model.opt.gravity[:] = [0, 0, -9.8]           # 重力（地球標準）
 model.opt.timestep = 0.001                    # タイムステップ（1ms）
@@ -274,7 +309,7 @@ imu_mjc = Imu(
 )
 
 def motor_controller_thread():
-    global imu_mjc, FLG_RESET_REQUEST, elapsed, total_frames, start_time, line_vel_x, line_vel_y, ang_vel_z
+    global imu_mjc, FLG_RESET_REQUEST, elapsed, total_frames, start_time, line_vel_x, line_vel_y, ang_vel_z, touch_sphere_visible
 
     # リセットコマンドは立ち上がりエッジでのみ受理する。
     reset_cmd_latched = False
@@ -410,7 +445,11 @@ def motor_controller_thread():
             with sim_lock:
                 mujoco.mj_resetData(model, data)
                 mujoco.mj_forward(model, data)
+                # タッチ球を再表示
+                if TOUCH_SPHERE_GEOM_ID >= 0:
+                    model.geom_rgba[TOUCH_SPHERE_GEOM_ID, 3] = 1.0
             FLG_RESET_REQUEST = False
+            touch_sphere_visible = True
             foot_offset_captured = False
             foot_calib_due_at = elapsed + FOOT_CALIB_DELAY
             logger.info("MuJoCo reset completed")
@@ -711,9 +750,26 @@ try:
         if VIEW_MODE == 'fpv':
             viewer.cam.type = mujoco.mjtCamera.mjCAMERA_FIXED
             viewer.cam.fixedcamid = FPV_CAM_ID
+        prev_sim_time = 0.0
         while viewer.is_running():
             with sim_lock:
                 mujoco.mj_step(model, data)
+                # UIリセット検出: data.timeが減少したらリセットとみなす
+                if data.time < prev_sim_time - model.opt.timestep:
+                    if TOUCH_SPHERE_GEOM_ID >= 0:
+                        model.geom_rgba[TOUCH_SPHERE_GEOM_ID, 3] = 1.0
+                    touch_sphere_visible = True
+                    logger.info("touch_sphere: UI reset detected, restoring sphere")
+                prev_sim_time = data.time
+                # タッチ球接触検出: ロボットが触れたら非表示
+                if touch_sphere_visible:
+                    for i in range(data.ncon):
+                        c = data.contact[i]
+                        if c.geom1 == TOUCH_SPHERE_GEOM_ID or c.geom2 == TOUCH_SPHERE_GEOM_ID:
+                            model.geom_rgba[TOUCH_SPHERE_GEOM_ID, 3] = 0.0
+                            touch_sphere_visible = False
+                            logger.info("touch_sphere: contact detected, hiding sphere")
+                            break
                 viewer.sync()
             time.sleep(model.opt.timestep)
 except Exception as e:
