@@ -82,6 +82,8 @@
           <geom class="visual" type="mesh" mesh="c_head" rgba="0.882 0.882 0.871 1.0" group="1"/>
           <!-- textー(text) -->
           <geom class="collision" type="box" size="0.0235 0.0145 0.01575" pos="0.0032 0.0 0.0227" quat="1.0 0.0 0.0 0.0" group="3"/>
+          <!-- FPVカメラ: 前方+X向き(Rx(π/2)·Ry(-π/2)), 上方+Z, 目の位置 -->
+          <camera name="head_fpv" pos="0.015 0 0.025" euler="1.5707963 -1.5707963 0" fovy="80"/>
         </body>
         <body name="l_shoulder" pos="0.01603 0.048855 0.045405">
           <joint name="l_shoulder_pitch" type="hinge" pos="0 0 0" axis="0 1 0" range="-3.141592653589793 3.141592653589793" limited="true" margin="0.0035" armature="0.01" frictionloss="0.005" damping="0.18" />

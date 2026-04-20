@@ -14,16 +14,16 @@ import logging
 import math
 import json
 
-# ロガーの設定
-# level=logging.DEBUG       詳細ログが出力される（開発用）
-# level=logging.INFO        通常の情報ログのみ出力される（本番環境用）
-# level=logging.WARNING     WARNInG以上のログのみ出力される
-# level=logging.ERROR       ERROR以上のログのみ出力される
+# Logger configuration
+# level=logging.DEBUG       Detailed logs (development)
+# level=logging.INFO        Normal info logs (production)
+# level=logging.WARNING     Warning level and above
+# level=logging.ERROR       Error level and above
 logging.basicConfig(
-    level=logging.INFO,  # 本番環境用
+    level=logging.INFO,  # For production
     format='%(asctime)s [%(levelname)s] %(message)s',
-    datefmt='%H:%M:%S',  # 時:分:秒のみ表示（日付とミリ秒を省略）
-    handlers=[logging.StreamHandler()]  # コンソール出力のみ
+    datefmt='%H:%M:%S',
+    handlers=[logging.StreamHandler()]
 )
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ os.environ['MUJOCO_GL'] = 'glfw'
 from redis_transfer import RedisTransfer
 from redis_receiver import RedisReceiver
 
-# 構造体を宣言する
+# Declare structures
 from dataclasses import dataclass, field
 from typing import List
 
@@ -52,7 +52,7 @@ RESET_CMD_COOLDOWN_SEC = 0.3  # 連続リセット抑止の最短間隔
 viewer = None  # MuJoCo viewer object
 
 MOT_START_TIME = 1.0  # 開始時間
-FOOT_CALIB_DELAY = 1.5  # 起動・リセット後、接地整定を待ってからオフセットキャプチャする遅延時間(s) ※時間遅延方式は現在無効化中
+FOOT_CALIB_DELAY = 1.5  # Calibration delay (s)
 USE_CONTACT_CALIB = True  # Trueのとき接地contact検出でキャリブ、FalseのときFOOT_CALIB_DELAY秒待機
 ACTUATOR_FORCE_SCALE = 1.0  # 実機寄りにトルク感を上げる係数
 FOOT_POS_DECIMALS = 4  # 足先・手先位置(m)の小数点桁数
@@ -64,7 +64,7 @@ REDIS_KEY_READ = "meridis_calc_pub"
 REDIS_KEY_WRITE = "meridis_sim_pub"
 
 def load_redis_config(json_file: str ="redis.json"):
-    """Redis設定をJSONファイルから読み込む"""
+    """Load Redis configuration from a JSON file"""
     global REDIS_HOST, REDIS_PORT, REDIS_KEY_READ, REDIS_KEY_WRITE
     global FLG_REDIS_TO_JOINT, FLG_JOINT_TO_REDIS
     
@@ -76,21 +76,21 @@ def load_redis_config(json_file: str ="redis.json"):
         with open(json_file, 'r', encoding='utf-8') as f:
             config = json.load(f)
         
-        # Redis接続設定の読み込み
+        # Load Redis connection settings
         if 'redis' in config:
             if 'host' in config['redis']:
                 REDIS_HOST = config['redis']['host']
             if 'port' in config['redis']:
                 REDIS_PORT = config['redis']['port']
         
-        # Redisキーの設定を読み込み
+        # Load Redis key settings
         if 'redis_keys' in config:
             if 'read' in config['redis_keys']:
                 REDIS_KEY_READ = config['redis_keys']['read']
             if 'write' in config['redis_keys']:
                 REDIS_KEY_WRITE = config['redis_keys']['write']
         
-        # データフロー設定を読み込み
+        # Load data flow settings
         if 'data_flow' in config:
             if 'redis_to_joint' in config['data_flow']:
                 FLG_REDIS_TO_JOINT = config['data_flow']['redis_to_joint']
@@ -138,11 +138,8 @@ class Twist:
     linear: Vector3
     angular: Vector3
 
-# 20260125版の関節名リスト
-# 読込む roid1_mjcf.xml のjoint名と joint_names[] が一致しない場合でも、
-# MuJoCo の data.ctrl はモデルの actuator順序に基づいてインデックス付けされることから
-# joint_namesリストの順序がXMLファイルのactuator順序と一致していれば、問題なく扱える。
-# ただし、可読性のためには、joint_names[]リストの関節名を一致させることが望ましい。
+# Joint names list for 20260125 version
+# Must match the actuator order in the XML file for data.ctrl indexing.
 joint_names = [
     "c_chest", "c_head", "l_shoulder_pitch", "l_shoulder_roll", "l_elbow_yaw", "l_elbow_pitch",
     "r_shoulder_pitch", "r_shoulder_roll", "r_elbow_yaw", "r_elbow_pitch",
@@ -202,10 +199,16 @@ parser.add_argument('--gethand',
                     default=False,
                     metavar='BOOL',
                     help='Write hand positions to mdata[44-46,74-76] (default: false)')
+parser.add_argument('--view',
+                    type=str,
+                    default=None,
+                    metavar='MODE',
+                    help='Camera view mode: fpv (first-person view from head center)')
 args = parser.parse_args()
 
 FLG_GET_FOOT = args.getfoot  # 両足位置書き込みフラグ
 FLG_GET_HAND = args.gethand  # 両手位置書き込みフラグ
+VIEW_MODE = args.view        # カメラビューモード
 
 # Redis設定の読み込み（data_flowの設定も含む）
 load_redis_config(args.redis)
@@ -227,6 +230,16 @@ sim_lock = threading.Lock()
 # モデルを読み込む
 model = mujoco.MjModel.from_xml_path('roid1_mjcf/scene.xml')
 data = mujoco.MjData(model)
+
+# FPVカメラID (XMLの head_fpv カメラを使用)
+FPV_CAM_ID = -1
+if VIEW_MODE == 'fpv':
+    FPV_CAM_ID = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_CAMERA, "head_fpv")
+    if FPV_CAM_ID < 0:
+        logger.warning("--view fpv: camera 'head_fpv' not found in model, falling back to default view")
+        VIEW_MODE = None
+    else:
+        logger.info(f"--view fpv: using fixed camera 'head_fpv' (id={FPV_CAM_ID})")
 
 
 # --- 起動時に強制的に物理パラメータを上書き ---
@@ -695,6 +708,9 @@ logger.info("Simulation started. Push [x]button or Select Menu [File -> Quit] to
 logger.info("Launching MuJoCo viewer...")
 try:
     with mujoco.viewer.launch_passive(model, data) as viewer:
+        if VIEW_MODE == 'fpv':
+            viewer.cam.type = mujoco.mjtCamera.mjCAMERA_FIXED
+            viewer.cam.fixedcamid = FPV_CAM_ID
         while viewer.is_running():
             with sim_lock:
                 mujoco.mj_step(model, data)
@@ -708,5 +724,3 @@ try:
     glfw.terminate()
 except:
     pass
-
-
