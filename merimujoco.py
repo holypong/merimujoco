@@ -19,7 +19,7 @@ try:
     _CV2_AVAILABLE = True
 except ImportError:
     _CV2_AVAILABLE = False
-    logger = logging.getLogger(__name__)
+    logger = None  # logging設定前のフォールバック（後で上書きされる）
 
 # Logger configuration
 # level=logging.DEBUG       Detailed logs (development)
@@ -339,6 +339,7 @@ imu_mjc = Imu(
 
 def motor_controller_thread():
     global imu_mjc, FLG_RESET_REQUEST, elapsed, total_frames, start_time, line_vel_x, line_vel_y, ang_vel_z, touch_sphere_visible
+    _cnt_self = False  # Trueになると以降メリムジョコがカウンタを自己管理
 
     # リセットコマンドは立ち上がりエッジでのみ受理する。
     reset_cmd_latched = False
@@ -557,8 +558,13 @@ def motor_controller_thread():
                                     #print(f"joint_name: {joint_name}, joint_idx: {joint_idx}, ctrl: {data.ctrl[joint_idx]}, mul: {joint_to_meridis[joint_name][1]}")
 
                     # mdataの更新 +Hori 20250628
+                    # mdata[1]の受信値が0の場合、以降は自己インクリメントモードにラッチ
+                    if not _cnt_self and float(rcv_data[1]) == 0:
+                        _cnt_self = True
                     for i in range(len(mdata)):
                         if i < len(rcv_data):
+                            if i == 1 and _cnt_self:
+                                continue  # メリムジョコが自己管理するため受信値を使わない
                             mdata[i] = float(rcv_data[i])
                         else:
                             mdata[i] = 0.0
@@ -742,6 +748,11 @@ def motor_controller_thread():
                                 mdata[meridis_idx] = round(joint_angle_deg, 4)
                 
                 #start_time = time.perf_counter()
+                # mdata[1]カウンタ処理（Redis書き込み直前）
+                # ・未受信 または 自己モードラッチ済み → 65535 まで累積インクリメント
+                # ・受信値が0以外かつラッチなし     → 受信値をそのまま使用
+                if (not rcv_data or _cnt_self) and int(mdata[1]) < 65535:
+                    mdata[1] = int(mdata[1]) + 1
                 redis_transfer.set_data(REDIS_KEY_WRITE, mdata)
 
         time.sleep(0.01)  # 10ms待機
@@ -810,7 +821,11 @@ try:
                         frame_rgb = FPV_RENDERER.render()              # [H,W,3] uint8
                         frame_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
                         _, buf = cv2.imencode(".jpg", frame_bgr, [cv2.IMWRITE_JPEG_QUALITY, 80])
-                        redis_transfer.redis_client.set(FPV_REDIS_KEY, base64.b64encode(buf).decode())
+                        payload = json.dumps({
+                            "count": int(mdata[1]),
+                            "frame": base64.b64encode(buf).decode()
+                        })
+                        redis_transfer.redis_client.set(FPV_REDIS_KEY, payload)
                     except Exception as e:
                         logger.error(f"FPV stream error: {e}")
 
