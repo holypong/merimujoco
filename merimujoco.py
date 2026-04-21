@@ -13,6 +13,13 @@ import logging
 
 import math
 import json
+import base64
+try:
+    import cv2
+    _CV2_AVAILABLE = True
+except ImportError:
+    _CV2_AVAILABLE = False
+    logger = logging.getLogger(__name__)
 
 # Logger configuration
 # level=logging.DEBUG       Detailed logs (development)
@@ -209,11 +216,16 @@ parser.add_argument('--sphere',
                     default=None,
                     metavar='X,Y,Z',
                     help='Touch sphere position in meters (e.g. --sphere 0.05,0.0,0.2)')
+parser.add_argument('--stream',
+                    action='store_true',
+                    default=False,
+                    help='Enable offscreen FPV streaming to Redis key "meridis_frame_pub" via camera "head_fpv"')
 args = parser.parse_args()
 
 FLG_GET_FOOT = args.getfoot  # 両足位置書き込みフラグ
 FLG_GET_HAND = args.gethand  # 両手位置書き込みフラグ
 VIEW_MODE = args.view        # カメラビューモード
+FLG_STREAM = args.stream     # FPVストリーミングフラグ
 
 # --sphere オプションの解析
 SPHERE_POS = None
@@ -257,6 +269,23 @@ if VIEW_MODE == 'fpv':
         VIEW_MODE = None
     else:
         logger.info(f"--view fpv: using fixed camera 'head_fpv' (id={FPV_CAM_ID})")
+
+# FPVオフスクリーンレンダラー (--stream オプション)
+FPV_RENDERER = None
+FPV_INTERVAL = 10   # 10ステップごとに配信 (10ms×10 = 100ms = 10fps)
+FPV_REDIS_KEY = "meridis_frame_pub"
+if FLG_STREAM:
+    if not _CV2_AVAILABLE:
+        logger.error("--stream requires opencv-python. Install with: pip install opencv-python")
+        FLG_STREAM = False
+    else:
+        _stream_cam_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_CAMERA, "head_fpv")
+        if _stream_cam_id < 0:
+            logger.error("--stream: camera 'head_fpv' not found in model. Streaming disabled.")
+            FLG_STREAM = False
+        else:
+            FPV_RENDERER = mujoco.Renderer(model, height=240, width=320)
+            logger.info(f"FPV streaming enabled: camera 'head_fpv' -> Redis key '{FPV_REDIS_KEY}' at ~10fps")
 
 
 # タッチ検出球のgeom ID
@@ -714,9 +743,6 @@ def motor_controller_thread():
                 
                 #start_time = time.perf_counter()
                 redis_transfer.set_data(REDIS_KEY_WRITE, mdata)
-                #elapsed_time = time.perf_counter() - start_time
-                #print(f"transfer elapsed time: {elapsed_time*1000000:.2f} microseconds ({elapsed_time:.6f} seconds)")
-
 
         time.sleep(0.01)  # 10ms待機
 
@@ -751,6 +777,7 @@ try:
             viewer.cam.type = mujoco.mjtCamera.mjCAMERA_FIXED
             viewer.cam.fixedcamid = FPV_CAM_ID
         prev_sim_time = 0.0
+        _fpv_cnt = 0  # FPV配信カウンタ（メインスレッドで管理）
         while viewer.is_running():
             with sim_lock:
                 mujoco.mj_step(model, data)
@@ -771,6 +798,22 @@ try:
                             logger.info("touch_sphere: contact detected, hiding sphere")
                             break
                 viewer.sync()
+
+            # FPVオフスクリーンレンダリング＆Redis配信（メインスレッドで実行、WGLコンテキスト競合尋避）
+            if FLG_STREAM and FPV_RENDERER is not None and redis_transfer.is_connected:
+                _fpv_cnt += 1
+                if _fpv_cnt >= FPV_INTERVAL:
+                    _fpv_cnt = 0
+                    try:
+                        with sim_lock:
+                            FPV_RENDERER.update_scene(data, camera="head_fpv")
+                        frame_rgb = FPV_RENDERER.render()              # [H,W,3] uint8
+                        frame_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
+                        _, buf = cv2.imencode(".jpg", frame_bgr, [cv2.IMWRITE_JPEG_QUALITY, 80])
+                        redis_transfer.redis_client.set(FPV_REDIS_KEY, base64.b64encode(buf).decode())
+                    except Exception as e:
+                        logger.error(f"FPV stream error: {e}")
+
             time.sleep(model.opt.timestep)
 except Exception as e:
     logger.exception(f"MuJoCo viewer loop error: {e}")
