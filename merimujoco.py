@@ -295,11 +295,13 @@ if TOUCH_SPHERE_GEOM_ID < 0:
     logger.warning("touch_sphere geom not found in model")
 
 # --sphere オプションで球の位置を上書き、省略時は非表示
+SPHERE_BODY_ID = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "touch_sphere_body")
+SPHERE_INITIAL_POS = model.body_pos[SPHERE_BODY_ID].copy() if SPHERE_BODY_ID >= 0 else None
+
 if TOUCH_SPHERE_GEOM_ID >= 0:
     if SPHERE_POS is not None:
-        sphere_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "touch_sphere_body")
-        if sphere_body_id >= 0:
-            model.body_pos[sphere_body_id] = SPHERE_POS
+        if SPHERE_BODY_ID >= 0:
+            model.body_pos[SPHERE_BODY_ID] = SPHERE_POS
             logger.info(f"touch_sphere position set to {SPHERE_POS}")
     else:
         model.geom_rgba[TOUCH_SPHERE_GEOM_ID, 3] = 0.0
@@ -475,11 +477,11 @@ def motor_controller_thread():
             with sim_lock:
                 mujoco.mj_resetData(model, data)
                 mujoco.mj_forward(model, data)
-                # タッチ球を再表示
-                if TOUCH_SPHERE_GEOM_ID >= 0:
-                    model.geom_rgba[TOUCH_SPHERE_GEOM_ID, 3] = 1.0
+                # タッチ球をxyz位置に戻す
+                if TOUCH_SPHERE_GEOM_ID >= 0 and SPHERE_POS is not None and SPHERE_BODY_ID >= 0:
+                    model.body_pos[SPHERE_BODY_ID] = SPHERE_POS
             FLG_RESET_REQUEST = False
-            touch_sphere_visible = True
+            touch_sphere_visible = SPHERE_POS is not None
             foot_offset_captured = False
             foot_calib_due_at = elapsed + FOOT_CALIB_DELAY
             logger.info("MuJoCo reset completed")
@@ -784,7 +786,7 @@ logger.info("Simulation started. Push [x]button or Select Menu [File -> Quit] to
 logger.info("Launching MuJoCo viewer...")
 try:
     with mujoco.viewer.launch_passive(model, data) as viewer:
-        if VIEW_MODE == 'fpv':
+        if VIEW_MODE == 'fpv' and FPV_CAM_ID >= 0:
             viewer.cam.type = mujoco.mjtCamera.mjCAMERA_FIXED
             viewer.cam.fixedcamid = FPV_CAM_ID
         prev_sim_time = 0.0
@@ -794,19 +796,19 @@ try:
                 mujoco.mj_step(model, data)
                 # UIリセット検出: data.timeが減少したらリセットとみなす
                 if data.time < prev_sim_time - model.opt.timestep:
-                    if TOUCH_SPHERE_GEOM_ID >= 0:
-                        model.geom_rgba[TOUCH_SPHERE_GEOM_ID, 3] = 1.0
-                    touch_sphere_visible = True
-                    logger.info("touch_sphere: UI reset detected, restoring sphere")
+                    if TOUCH_SPHERE_GEOM_ID >= 0 and SPHERE_POS is not None and SPHERE_BODY_ID >= 0:
+                        model.body_pos[SPHERE_BODY_ID] = SPHERE_POS
+                    touch_sphere_visible = SPHERE_POS is not None
+                    logger.info("touch_sphere: UI reset detected, moved sphere to xyz")
                 prev_sim_time = data.time
                 # タッチ球接触検出: ロボットが触れたら非表示
                 if touch_sphere_visible:
                     for i in range(data.ncon):
                         c = data.contact[i]
                         if c.geom1 == TOUCH_SPHERE_GEOM_ID or c.geom2 == TOUCH_SPHERE_GEOM_ID:
-                            model.geom_rgba[TOUCH_SPHERE_GEOM_ID, 3] = 0.0
-                            touch_sphere_visible = False
-                            logger.info("touch_sphere: contact detected, hiding sphere")
+                            if SPHERE_BODY_ID >= 0 and SPHERE_INITIAL_POS is not None:
+                                model.body_pos[SPHERE_BODY_ID] = SPHERE_INITIAL_POS
+                            logger.info("touch_sphere: contact detected, moved to initial position")
                             break
                 viewer.sync()
 
