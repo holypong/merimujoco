@@ -4,7 +4,8 @@ mrd_stream_viewer.py - Redis から FPV フレームを受信して表示する�
 終了: ウィンドウを閉じるか Ctrl+C
 
 Redis キーのデータ形式:
-  JSON {"count": <int>, "frame": "<base64 JPEG>"}
+  JSON {"meridim90": [<float> x90], "frame": "<base64 JPEG>"}
+  カウンタは meridim90[1] に含まれる。
 """
 import argparse
 import base64
@@ -76,9 +77,9 @@ def main():
 
     cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
 
-    last_raw = None      # 前回の生データ（変化検出用）
-    last_frame = None    # デコード済みフレームキャッシュ
-    last_count = None    # 前回の Meridim90 カウンタ値
+    last_raw      = None   # 前回の生データ（変化検出用）
+    last_frame    = None   # デコード済みフレームキャッシュ
+    last_meridim  = None   # 前回の Meridim90 配列
     no_data_warned = False
 
     try:
@@ -102,35 +103,25 @@ def main():
                     last_raw = raw
                     try:
                         payload = json.loads(raw)
-                        count = payload.get("count")
+                        meridim90 = payload.get("meridim90")
                         frame_b64 = payload.get("frame")
                         if frame_b64 is None:
-                            # 旧形式（Base64のみ）にもフォールバック
-                            frame_b64 = raw
-                            count = None
+                            raise ValueError("frame フィールドがありません")
                         buf = base64.b64decode(frame_b64)
                         arr = np.frombuffer(buf, dtype=np.uint8)
                         decoded = cv2.imdecode(arr, cv2.IMREAD_COLOR)
                         if decoded is not None:
                             last_frame = decoded
-                            last_count = count
-                    except (json.JSONDecodeError, Exception):
-                        # JSON でなければ旧形式として処理
-                        try:
-                            buf = base64.b64decode(raw)
-                            arr = np.frombuffer(buf, dtype=np.uint8)
-                            decoded = cv2.imdecode(arr, cv2.IMREAD_COLOR)
-                            if decoded is not None:
-                                last_frame = decoded
-                                last_count = None
-                        except Exception as e:
-                            print(f"[WARN] フレームのデコードに失敗しました: {e}")
+                            last_meridim = meridim90
+                    except Exception as e:
+                        print(f"[WARN] フレームのデコードに失敗しました: {e}")
 
             # 毎ループ imshow を呼んでウィンドウを維持する
             if last_frame is not None:
                 disp = last_frame.copy()
-                if last_count is not None:
-                    cv2.putText(disp, f"cnt:{last_count}", (4, 16),
+                if last_meridim and len(last_meridim) > 1:
+                    count = int(last_meridim[1])
+                    cv2.putText(disp, f"cnt:{count}", (4, 16),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1, cv2.LINE_AA)
                 cv2.imshow(WINDOW_NAME, disp)
 

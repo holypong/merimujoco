@@ -578,6 +578,16 @@ def motor_controller_thread():
 
                     #print(f"mdata: {mdata}")
 
+                    # 受信 id80==1 のとき id81-83 で球位置を上書き
+                    if SPHERE_POS is not None and SPHERE_BODY_ID >= 0 and float(rcv_data[80]) == 1.0:
+                        SPHERE_POS[0] = float(rcv_data[81])
+                        SPHERE_POS[1] = float(rcv_data[82])
+                        SPHERE_POS[2] = float(rcv_data[83])
+                        with sim_lock:
+                            model.body_pos[SPHERE_BODY_ID][:] = SPHERE_POS
+                        sphere_status = 1
+                        touch_sphere_visible = True
+
             if FLG_CREATE_CTRL and elapsed >= MOT_START_TIME:  # 制御信号作成フラグが立っていて、開始時間を超えたら
                 # make actions:データの更新
 
@@ -838,11 +848,12 @@ try:
                     try:
                         with sim_lock:
                             FPV_RENDERER.update_scene(data, camera="head_fpv")
+                            mdata_snapshot = list(mdata)  # シーンと同タイミングでスナップショット
                         frame_rgb = FPV_RENDERER.render()              # [H,W,3] uint8
                         frame_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
                         _, buf = cv2.imencode(".jpg", frame_bgr, [cv2.IMWRITE_JPEG_QUALITY, 80])
                         payload = json.dumps({
-                            "count": int(mdata[1]),
+                            "meridim90": mdata_snapshot,
                             "frame": base64.b64encode(buf).decode()
                         })
                         redis_transfer.redis_client.set(FPV_REDIS_KEY, payload)
