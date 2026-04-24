@@ -443,11 +443,13 @@ def motor_controller_thread():
     r_foot_geom_ids = [g for g in range(model.ngeom) if model.geom_bodyid[g] == r_foot_body_id]
 
     def is_foot_grounded(foot_geom_ids):
-        ncon = min(data.ncon, len(data.contact))  # race condition対策
-        for i in range(ncon):
-            c = data.contact[i]
-            if c.geom1 in foot_geom_ids or c.geom2 in foot_geom_ids:
-                return True
+        try:
+            for i in range(data.ncon):
+                c = data.contact[i]
+                if c.geom1 in foot_geom_ids or c.geom2 in foot_geom_ids:
+                    return True
+        except IndexError:
+            pass
         return False
 
     # 足先オフセットは起動・リセット後 FOOT_CALIB_DELAY 秒後に整定してからキャプチャする
