@@ -215,7 +215,7 @@ parser.add_argument('--sphere',
                     type=str,
                     default=None,
                     metavar='X,Y,Z',
-                    help='Touch sphere position in meters (e.g. --sphere 0.05,0.0,0.2)')
+                    help='Touch sphere position in meters (e.g. --sphere 0.15,-0.05,0.35)') # 0.15,-0.05,0.1 で右手が到達可能な位置
 parser.add_argument('--stream',
                     action='store_true',
                     default=False,
@@ -238,6 +238,9 @@ if args.sphere:
     except ValueError as e:
         print(f"[ERROR] --sphere の形式が不正です ({e})。例: --sphere 0.05,0.0,0.2")
         sys.exit(1)
+
+# id80: 0=球なし, 1=球あり(bit0), 3=接触検知(bit0+bit1)
+sphere_status = 1 if SPHERE_POS is not None else 0
 
 # Redis設定の読み込み（data_flowの設定も含む）
 load_redis_config(args.redis)
@@ -340,7 +343,7 @@ imu_mjc = Imu(
 )
 
 def motor_controller_thread():
-    global imu_mjc, FLG_RESET_REQUEST, elapsed, total_frames, start_time, line_vel_x, line_vel_y, ang_vel_z, touch_sphere_visible
+    global imu_mjc, FLG_RESET_REQUEST, elapsed, total_frames, start_time, line_vel_x, line_vel_y, ang_vel_z, touch_sphere_visible, sphere_status
     _cnt_self = False  # Trueになると以降メリムジョコがカウンタを自己管理
 
     # リセットコマンドは立ち上がりエッジでのみ受理する。
@@ -482,6 +485,8 @@ def motor_controller_thread():
                     model.body_pos[SPHERE_BODY_ID] = SPHERE_POS
             FLG_RESET_REQUEST = False
             touch_sphere_visible = SPHERE_POS is not None
+            if SPHERE_POS is not None:
+                sphere_status = 1  # bit1をクリア（接触フラグをリセット）
             foot_offset_captured = False
             foot_calib_due_at = elapsed + FOOT_CALIB_DELAY
             logger.info("MuJoCo reset completed")
@@ -755,6 +760,16 @@ def motor_controller_thread():
                 # ・受信値が0以外かつラッチなし     → 受信値をそのまま使用
                 if (not rcv_data or _cnt_self) and int(mdata[1]) < 65535:
                     mdata[1] = int(mdata[1]) + 1
+                # mdata[80-83]: 球状態を常に上書き（受信データより優先）
+                mdata[80] = float(sphere_status)
+                if SPHERE_POS is not None:
+                    mdata[81] = float(SPHERE_POS[0])
+                    mdata[82] = float(SPHERE_POS[1])
+                    mdata[83] = float(SPHERE_POS[2])
+                else:
+                    mdata[81] = 0.0
+                    mdata[82] = 0.0
+                    mdata[83] = 0.0
                 redis_transfer.set_data(REDIS_KEY_WRITE, mdata)
 
         time.sleep(0.01)  # 10ms待機
@@ -799,6 +814,8 @@ try:
                     if TOUCH_SPHERE_GEOM_ID >= 0 and SPHERE_POS is not None and SPHERE_BODY_ID >= 0:
                         model.body_pos[SPHERE_BODY_ID] = SPHERE_POS
                     touch_sphere_visible = SPHERE_POS is not None
+                    if SPHERE_POS is not None:
+                        sphere_status = 1  # bit1をクリア（システムリセット）
                     logger.info("touch_sphere: UI reset detected, moved sphere to xyz")
                 prev_sim_time = data.time
                 # タッチ球接触検出: ロボットが触れたら非表示
@@ -808,6 +825,7 @@ try:
                         if c.geom1 == TOUCH_SPHERE_GEOM_ID or c.geom2 == TOUCH_SPHERE_GEOM_ID:
                             if SPHERE_BODY_ID >= 0 and SPHERE_INITIAL_POS is not None:
                                 model.body_pos[SPHERE_BODY_ID] = SPHERE_INITIAL_POS
+                            sphere_status = 3  # bit1をセット（接触検知）
                             logger.info("touch_sphere: contact detected, moved to initial position")
                             break
                 viewer.sync()
