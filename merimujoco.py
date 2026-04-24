@@ -443,7 +443,8 @@ def motor_controller_thread():
     r_foot_geom_ids = [g for g in range(model.ngeom) if model.geom_bodyid[g] == r_foot_body_id]
 
     def is_foot_grounded(foot_geom_ids):
-        for i in range(data.ncon):
+        ncon = min(data.ncon, len(data.contact))  # race condition対策
+        for i in range(ncon):
             c = data.contact[i]
             if c.geom1 in foot_geom_ids or c.geom2 in foot_geom_ids:
                 return True
@@ -849,6 +850,8 @@ try:
                         with sim_lock:
                             FPV_RENDERER.update_scene(data, camera="head_fpv")
                             mdata_snapshot = list(mdata)  # シーンと同タイミングでスナップショット
+                        # motor_controller_thread との競合を避けるため最新値で上書き
+                        mdata_snapshot[80] = float(sphere_status)
                         frame_rgb = FPV_RENDERER.render()              # [H,W,3] uint8
                         frame_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
                         _, buf = cv2.imencode(".jpg", frame_bgr, [cv2.IMWRITE_JPEG_QUALITY, 80])
