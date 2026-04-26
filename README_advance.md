@@ -19,8 +19,11 @@ python merimujoco.py
 
 ### コマンドオプション
 - `--redis <ファイル名>`: Redis設定JSONファイルを指定（デフォルト: `redis.json`）
+- `--getfoot <BOOL>`: 足先XYZ位置を Meridim90 の `id47-49`（左）・`id77-79`（右）に書き込む（デフォルト: `true`）
+- `--gethand <BOOL>`: 手先XYZ位置を Meridim90 の `id44-46`（左）・`id74-76`（右）に書き込む（デフォルト: `false`）
+- `--view <MODE>`: カメラビューモードを指定（`fpv`: ヘッド搭載カメラ `head_fpv` の一人称視点）
 - `--sphere <X,Y,Z>`: タッチ検出球をワールド座標（メートル）に配置（例: `--sphere 0.2,-0.01,0.35`）。省略時は球を非表示にし、Meridim90[80-83] は 0。
-- `--stream`: FPVオフスクリーンレンダリングを有効化し、カメラ `head_fpv` の映像と Meridim90 を Redis キー `meridis_frame_pub` へ配信（約10fps）。
+- `--stream`: FPVオフスクリーンレンダリングを有効化し、カメラ `head_fpv` の映像と Meridim90 を Redis キー `meridis_frame_pub` へ配信（約10fps）。`opencv-python` が必要（`pip install opencv-python`）。
 
 
 ---
@@ -54,8 +57,8 @@ Redis接続設定を JSON ファイルで管理します。
   - `read`: 制御システムからの指令データを読み取るキー
   - `write`: シミュレーション状態データを書き込むキー
 - **data_flow**: データフローの制御 **[試験中]**
-  - `redis_to_joint`: Redisから受信した値をMuJoCoの関節にセット (デフォルト: `true`)
-  - `joint_to_redis`: MuJoCoの関節角度をRedisに送信 (デフォルト: `false`)
+  - `redis_to_joint`: Redisから受信した値をMuJoCoの関節にセット (コードデフォルト: `true`、`redis.json` では `false`)
+  - `joint_to_redis`: MuJoCoの関節角度をRedisに送信 (コードデフォルト: `false`、`redis.json` では `true`)
 
 #### 各設定ファイルの違い
 
@@ -150,6 +153,41 @@ joint_to_meridis = {
 }
 ```
 
+## Meridim90 データマッピング
+
+merimujoco が書き込む `meridis_sim_pub`（write キー）の主なインデックス一覧です。
+
+| インデックス | 内容 | 単位 | 備考 |
+|-------------|------|------|------|
+| `id1` | フレームカウンタ | - | 受信値が0のとき以降は自己インクリメント（最大65535） |
+| `id2` | IMU加速度 ax | m/s² | c_chest座標系 |
+| `id3` | IMU加速度 ay | m/s² | c_chest座標系 |
+| `id4` | IMU加速度 az | m/s² | c_chest座標系 |
+| `id5` | IMU角速度 wx | deg/s | c_chest座標系 |
+| `id6` | IMU角速度 wy | deg/s | c_chest座標系 |
+| `id7` | IMU角速度 wz | deg/s | c_chest座標系 |
+| `id12` | IMU姿勢 roll | deg | c_chest |
+| `id13` | IMU姿勢 pitch | deg | c_chest |
+| `id14` | IMU姿勢 yaw | deg | c_chest |
+| `id44` | 左手先 X | m | ワールド座標（`--gethand true` 時のみ有効） |
+| `id45` | 左手先 Y | m | ワールド座標（`--gethand true` 時のみ有効） |
+| `id46` | 左手先 Z | m | ワールド座標（`--gethand true` 時のみ有効） |
+| `id47` | 左足先 X | m | 左股関節ヨー軸中心相対・ゼロ補正後（`--getfoot true` 時のみ有効） |
+| `id48` | 左足先 Y | m | 左股関節ヨー軸中心相対・ゼロ補正後（`--getfoot true` 時のみ有効） |
+| `id49` | 左足先 Z | m | 床面からの高さ・ゼロ補正後（`--getfoot true` 時のみ有効） |
+| `id74` | 右手先 X | m | ワールド座標（`--gethand true` 時のみ有効） |
+| `id75` | 右手先 Y | m | ワールド座標（`--gethand true` 時のみ有効） |
+| `id76` | 右手先 Z | m | ワールド座標（`--gethand true` 時のみ有効） |
+| `id77` | 右足先 X | m | 右股関節ヨー軸中心相対・ゼロ補正後（`--getfoot true` 時のみ有効） |
+| `id78` | 右足先 Y | m | 右股関節ヨー軸中心相対・ゼロ補正後（`--getfoot true` 時のみ有効） |
+| `id79` | 右足先 Z | m | 床面からの高さ・ゼロ補正後（`--getfoot true` 時のみ有効） |
+| `id80` | 球ステータスフラグ | - | ビット定義はタッチ検出球セクション参照 |
+| `id81` | 球位置 X | m | `--sphere` 省略時は `0.0` |
+| `id82` | 球位置 Y | m | `--sphere` 省略時は `0.0` |
+| `id83` | 球位置 Z | m | `--sphere` 省略時は `0.0` |
+
+---
+
 ## 特殊機能
 
 ### リセット機能
@@ -189,9 +227,9 @@ joint_to_meridis = {
 ```
 起動 (--sphere あり)  →  id80 = 1
        ↓ 接触検知
-    id80 = 3
-       ↓ システムリセット
-    id80 = 1
+    id80 = 3  ← 球はXMLモデルのデフォルト位置（非表示位置）へ移動
+       ↓ システムリセット（コマンドまたはUIリセット）
+    id80 = 1  ← 球は --sphere で指定した xyz 位置へ戻る
 ```
 
 #### 球位置の動的更新（read キー経由）
