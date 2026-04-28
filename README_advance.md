@@ -23,7 +23,7 @@ python merimujoco.py
 - `--gethand <BOOL>`: 手先XYZ位置を Meridim90 の `id44-46`（左）・`id74-76`（右）に書き込む（デフォルト: `false`）
 - `--view <MODE>`: カメラビューモードを指定（`fpv`: ヘッド搭載カメラ `head_fpv` の一人称視点）
 - `--sphere <X,Y,Z>`: タッチ検出球をワールド座標（メートル）に配置（例: `--sphere 0.2,-0.01,0.35`）。省略時は球を非表示にし、Meridim90[80-83] は 0。
-- `--stream`: FPVオフスクリーンレンダリングを有効化し、カメラ `head_fpv` の映像と Meridim90 を Redis キー `meridis_frame_pub` へ配信（約10fps）。`opencv-python` が必要（`pip install opencv-python`）。
+- `--stream [HZ]`: FPVオフスクリーンレンダリングを有効化し、カメラ `head_fpv` の映像と Meridim90 を Redis キー `meridis_frame_pub` へ配信。`HZ` を指定すると 1-100Hz の範囲で送信間隔を調整できます（省略時: 10Hz）。`opencv-python` が必要（`pip install opencv-python`）。
 
 
 ---
@@ -246,16 +246,16 @@ merimujoco が書き込む `meridis_sim_pub`（write キー）の主なインデ
 
 ---
 
-### FPV ストリーミング (`--stream`)
+### FPV ストリーミング (`--stream [HZ]`)
 
-`--stream` を指定すると、カメラ `head_fpv` のオフスクリーンレンダリング映像を Meridim90 データとともに Redis へ配信します。
+`--stream` を指定すると、カメラ `head_fpv` のオフスクリーンレンダリング映像を Meridim90 データとともに Redis へ配信します。数値を付けて `--stream 30` のように指定すると、1-100Hz の範囲で送信間隔を調整できます。数値を省略した場合は 10Hz で配信します。
 
 #### 配信先
 
 | 項目 | 値 |
 |------|----|
 | Redis キー | `meridis_frame_pub` |
-| 配信レート | 約10fps（10ステップごと） |
+| 配信レート | 1-100Hz（`--stream` 単体では 10Hz） |
 | 解像度 | 320×240 |
 | 画像フォーマット | JPEG（品質80） |
 

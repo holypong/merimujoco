@@ -216,16 +216,30 @@ parser.add_argument('--sphere',
                     default=None,
                     metavar='X,Y,Z',
                     help='Touch sphere position in meters (e.g. --sphere 0.15,-0.05,0.35)') # 0.15,-0.05,0.1 で右手が到達可能な位置
+
+def stream_hz(value):
+    try:
+        hz = float(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("--stream rate must be a number from 1 to 100 Hz") from exc
+    if not 1.0 <= hz <= 100.0:
+        raise argparse.ArgumentTypeError("--stream rate must be from 1 to 100 Hz")
+    return hz
+
 parser.add_argument('--stream',
-                    action='store_true',
+                    nargs='?',
+                    const=10.0,
+                    type=stream_hz,
                     default=False,
-                    help='Enable offscreen FPV streaming to Redis key "meridis_frame_pub" via camera "head_fpv"')
+                    metavar='HZ',
+                    help='Enable offscreen FPV streaming to Redis key "meridis_frame_pub" via camera "head_fpv" (default: 10 Hz, range: 1-100)')
 args = parser.parse_args()
 
 FLG_GET_FOOT = args.getfoot  # 両足位置書き込みフラグ
 FLG_GET_HAND = args.gethand  # 両手位置書き込みフラグ
 VIEW_MODE = args.view        # カメラビューモード
-FLG_STREAM = args.stream     # FPVストリーミングフラグ
+FLG_STREAM = args.stream is not False  # FPVストリーミングフラグ
+FPV_STREAM_HZ = args.stream if FLG_STREAM else 0.0
 
 # --sphere オプションの解析
 SPHERE_POS = None
@@ -275,7 +289,7 @@ if VIEW_MODE == 'fpv':
 
 # FPVオフスクリーンレンダラー (--stream オプション)
 FPV_RENDERER = None
-FPV_INTERVAL = 10   # 10ステップごとに配信 (10ms×10 = 100ms = 10fps)
+FPV_INTERVAL_SEC = 1.0 / FPV_STREAM_HZ if FLG_STREAM else 0.0
 FPV_REDIS_KEY = "meridis_frame_pub"
 if FLG_STREAM:
     if not _CV2_AVAILABLE:
@@ -288,7 +302,7 @@ if FLG_STREAM:
             FLG_STREAM = False
         else:
             FPV_RENDERER = mujoco.Renderer(model, height=240, width=320)
-            logger.info(f"FPV streaming enabled: camera 'head_fpv' -> Redis key '{FPV_REDIS_KEY}' at ~10fps")
+            logger.info(f"FPV streaming enabled: camera 'head_fpv' -> Redis key '{FPV_REDIS_KEY}' at {FPV_STREAM_HZ:g} Hz")
 
 
 # タッチ検出球のgeom ID
@@ -818,7 +832,7 @@ try:
             viewer.cam.type = mujoco.mjtCamera.mjCAMERA_FIXED
             viewer.cam.fixedcamid = FPV_CAM_ID
         prev_sim_time = 0.0
-        _fpv_cnt = 0  # FPV配信カウンタ（メインスレッドで管理）
+        _next_fpv_send_at = time.monotonic()  # FPV配信タイミング（メインスレッドで管理）
         while viewer.is_running():
             with sim_lock:
                 mujoco.mj_step(model, data)
@@ -845,9 +859,9 @@ try:
 
             # FPVオフスクリーンレンダリング＆Redis配信（メインスレッドで実行、WGLコンテキスト競合尋避）
             if FLG_STREAM and FPV_RENDERER is not None and redis_transfer.is_connected:
-                _fpv_cnt += 1
-                if _fpv_cnt >= FPV_INTERVAL:
-                    _fpv_cnt = 0
+                now = time.monotonic()
+                if now >= _next_fpv_send_at:
+                    _next_fpv_send_at = now + FPV_INTERVAL_SEC
                     try:
                         with sim_lock:
                             FPV_RENDERER.update_scene(data, camera="head_fpv")
