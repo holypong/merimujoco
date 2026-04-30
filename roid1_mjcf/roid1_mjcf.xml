@@ -62,10 +62,6 @@
   </asset>
 
   <worldbody>
-    <!-- タッチ検出球: ワールド固定, 接触で非表示 -->
-    <body name="touch_sphere_body" pos="0.05 0.0 -1.0">
-      <geom name="touch_sphere" type="sphere" size="0.01" rgba="1 0 0 1" contype="1" conaffinity="1"/>
-    </body>
     <body name="c_waist" pos="0 0 0.35">
       <freejoint />
       <!-- text(displaytext) -->

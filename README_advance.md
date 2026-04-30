@@ -188,7 +188,7 @@ merimujoco が書き込む `meridis_sim_pub`（write キー）の主なインデ
 
 ---
 
-## 特殊機能
+## 機械学習向けオプション
 
 ### リセット機能
 - **条件**: Redis経由で `data[0] == 5556` を受信
@@ -272,9 +272,9 @@ merimujoco が書き込む `meridis_sim_pub`（write キー）の主なインデ
 - `frame`: JPEG画像を Base64 エンコードした文字列。
 - カウンタは `meridim90[1]` に含まれるため、独立した `count` フィールドは持たない。
 
-#### ビューア
+#### FPVビューア
 
-`mrd_stream_viewer.py` で受信・表示できます。
+`mrd_stream_viewer.py` で`merimujoco.py`の FPV ストリーミングを受信・表示できます。
 
 ```bash
 python mrd_stream_viewer.py [--redis redis.json] [--key meridis_frame_pub] [--fps 30]

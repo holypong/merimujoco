@@ -77,7 +77,13 @@ meridis のセットアップが完了したら、MuJoCoおよびmerimujoco を�
 Python 3.11以上の仮想環境を作成し、下記のパッケージをインストールします。
 
 ```bash
-pip install mujoco numpy redis
+pip install mujoco numpy redis opencv-python matplotlib
+```
+
+`glfw` の import エラーが出る場合は、必要に応じて追加でインストールしてください。
+
+```bash
+pip install glfw
 ```
 
 以上でインストールは完了です。  
