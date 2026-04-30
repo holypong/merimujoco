@@ -358,7 +358,9 @@ imu_mjc = Imu(
 
 def motor_controller_thread():
     global imu_mjc, FLG_RESET_REQUEST, elapsed, total_frames, start_time, line_vel_x, line_vel_y, ang_vel_z, touch_sphere_visible, sphere_status
-    _cnt_self = False  # Trueになると以降メリムジョコがカウンタを自己管理
+    last_read_counter = None
+    read_counter_stale_ticks = 0
+    read_counter_timeout_ticks = 100
 
     # リセットコマンドは立ち上がりエッジでのみ受理する。
     reset_cmd_latched = False
@@ -473,6 +475,11 @@ def motor_controller_thread():
     foot_calib_due_at = FOOT_CALIB_DELAY  # 次回キャプチャ予定時刻(elapsed基準)
 
     while True:
+        rcv_data = None
+        use_read_counter = False
+        increment_counter = False
+        read_counter_sampled = False
+
         # 時間を更新
         total_frames += 1
         elapsed = time.time() - start_time
@@ -581,14 +588,24 @@ def motor_controller_thread():
                                     data.ctrl[joint_idx] = round(np.radians(float(rcv_data[meridis_idx])*meridis_mul), 2)
                                     #print(f"joint_name: {joint_name}, joint_idx: {joint_idx}, ctrl: {data.ctrl[joint_idx]}, mul: {joint_to_meridis[joint_name][1]}")
 
+                    read_counter_sampled = True
+                    read_counter = int(float(rcv_data[1])) & 0xFFFF
+                    if last_read_counter is None or read_counter != last_read_counter:
+                        last_read_counter = read_counter
+                        read_counter_stale_ticks = 0
+                        use_read_counter = True
+                    else:
+                        read_counter_stale_ticks += 1
+                        if read_counter_stale_ticks < read_counter_timeout_ticks:
+                            use_read_counter = True
+                        else:
+                            increment_counter = True
+
                     # mdataの更新 +Hori 20250628
-                    # mdata[1]の受信値が0の場合、以降は自己インクリメントモードにラッチ
-                    if not _cnt_self and float(rcv_data[1]) == 0:
-                        _cnt_self = True
                     for i in range(len(mdata)):
                         if i < len(rcv_data):
-                            if i == 1 and _cnt_self:
-                                continue  # メリムジョコが自己管理するため受信値を使わない
+                            if i == 1 and not use_read_counter:
+                                continue
                             mdata[i] = float(rcv_data[i])
                         else:
                             mdata[i] = 0.0
@@ -604,6 +621,11 @@ def motor_controller_thread():
                             model.body_pos[SPHERE_BODY_ID][:] = SPHERE_POS
                         sphere_status = 1
                         touch_sphere_visible = True
+
+            if not read_counter_sampled:
+                read_counter_stale_ticks += 1
+                if read_counter_stale_ticks >= read_counter_timeout_ticks:
+                    increment_counter = True
 
             if FLG_CREATE_CTRL and elapsed >= MOT_START_TIME:  # 制御信号作成フラグが立っていて、開始時間を超えたら
                 # make actions:データの更新
@@ -783,9 +805,9 @@ def motor_controller_thread():
                 
                 #start_time = time.perf_counter()
                 # mdata[1]カウンタ処理（Redis書き込み直前）
-                # ・未受信 または 自己モードラッチ済み → 0-65535でロールオーバー
-                # ・受信値が0以外かつラッチなし     → 受信値をそのまま使用
-                if not rcv_data or _cnt_self:
+                # ・FLG_SET_RCVD=False: カウンタは操作しない
+                # ・受信カウンタが100周期更新されない場合のみ、0-65535で自己インクリメント
+                if FLG_SET_RCVD and increment_counter:
                     mdata[1] = (int(mdata[1]) + 1) & 0xFFFF
                 # mdata[80-83]: 球状態を常に上書き（受信データより優先）
                 mdata[80] = float(sphere_status)
