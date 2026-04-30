@@ -783,10 +783,10 @@ def motor_controller_thread():
                 
                 #start_time = time.perf_counter()
                 # mdata[1]カウンタ処理（Redis書き込み直前）
-                # ・未受信 または 自己モードラッチ済み → 65535 まで累積インクリメント
+                # ・未受信 または 自己モードラッチ済み → 0-65535でロールオーバー
                 # ・受信値が0以外かつラッチなし     → 受信値をそのまま使用
-                if (not rcv_data or _cnt_self) and int(mdata[1]) < 65535:
-                    mdata[1] = int(mdata[1]) + 1
+                if not rcv_data or _cnt_self:
+                    mdata[1] = (int(mdata[1]) + 1) & 0xFFFF
                 # mdata[80-83]: 球状態を常に上書き（受信データより優先）
                 mdata[80] = float(sphere_status)
                 if SPHERE_POS is not None:
