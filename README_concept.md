@@ -142,12 +142,14 @@ AIが試行錯誤を通じて最適な行動を学習する手法。シミュレ
 **デジタルツイン（Digital Twin）**  
 実世界の物体やシステムをデジタル空間に再現したもの。本プロジェクトでは、シミュレーションロボットと実機ロボットが同期して動く状態を指す。
 
-**NVIDIA Isaac Sim / Isaac Lab（アイザック・シム / アイザック・ラボ）**  
-NVIDIAが開発するロボット開発プラットフォーム。Isaac Simはリアルタイムレイトレーシングによるフォトリアリスティックなシミュレーション環境、Isaac Labは強化学習に特化したフレームワーク。内部でMuJoCoを物理エンジンとして利用可能で、GPU並列化により数千体のロボットを同時シミュレーションできる。
-
 **Genesis（ジェネシス）**  
 物理シミュレーションとAIロボティクスを統合した次世代プラットフォーム。MuJoCoをベースに、GPU加速による超高速シミュレーション（最大43万FPS）を実現。生成AI時代のロボット開発に最適化され、単一のPythonスクリプトで物理シミュレーション、レンダリング、学習を完結できる設計が特徴。
 
+**NVIDIA Isaac Sim / Isaac Lab（アイザック・シム / アイザック・ラボ）**
+NVIDIAが開発するロボット開発プラットフォーム。Isaac SimはOpenUSD / Omniverseを基盤とし、従来はNVIDIA PhysXを物理エンジンとして利用してきたシミュレーション環境。Isaac LabはIsaac Sim上で強化学習や模倣学習による制御ポリシー訓練を行うフレームワーク。近年はNewtonとの連携により、GPU加速された次世代の物理シミュレーションも利用可能になっている。
+
+**NVIDIA Newton（ニュートン）**
+NVIDIA、Google DeepMind、Disney Researchが共同開発するオープンソースのGPU加速物理エンジン。NVIDIA WarpとOpenUSDを基盤に、大規模並列シミュレーションや微分可能物理を実現。Isaac Sim / Isaac LabやMuJoCo Playgroundと連携し、ヒューマノイドロボットの運動制御・強化学習・Sim2Real転移を支援する。
 ---
 
 ### さらに詳しく知りたい方へ
@@ -159,3 +161,4 @@ NVIDIAが開発するロボット開発プラットフォーム。Isaac Simは�
 - **NVIDIA Isaac Sim**: https://developer.nvidia.com/isaac-sim
 - **NVIDIA Isaac Lab**: https://isaac-sim.github.io/IsaacLab/
 - **Genesis**: https://genesis-world.readthedocs.io/
+- **Newton**: https://github.com/newton-physics/newton
