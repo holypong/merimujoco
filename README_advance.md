@@ -190,6 +190,8 @@ merimujoco が書き込む `meridis_sim_pub`（write キー）の主なインデ
 
 ## 機械学習向けオプション
 
+- 以降の機能は、模倣学習・強化学習などの機械学習を行う上で便利機能です。
+
 ### リセット機能
 - **条件**: Redis経由で `data[0] == 5556` を受信
 - **動作**: MuJoCoシミュレーション状態を初期化（mj_resetData）
@@ -197,10 +199,117 @@ merimujoco が書き込む `meridis_sim_pub`（write キー）の主なインデ
 
 ---
 
+### FPV ストリーミング (`--stream [HZ]`)
+
+- ロボットのカメラ映像と自然言語指示を元にロボットの挙動を決定するVLA(Vision-Lanaguate-Action)のための学習に有用です
+- `--stream` を指定すると、カメラ `head_fpv` のオフスクリーンレンダリング映像を Meridim90 データとともに Redis へ配信します。
+- 数値を付けて `--stream 30` のように指定すると、1-100Hz の範囲で送信間隔を調整できます。数値を省略した場合は 10Hz で配信します。
+
+#### ロボットモデル XML へのカメラ定義（必須）
+
+`--view fpv` および `--stream` を使用するには、読み込む MuJoCo モデル XML に **`head_fpv`** という名前のカメラが定義されている必要があります。  
+`roid1_mjcf.xml` では、頭部ボディ（`c_head`）の子要素として次のように定義されています。
+
+```xml
+<!-- FPVカメラ: 前方+X向き(Rx(π/2)·Ry(-π/2)), 上方+Z, 目の位置 -->
+<camera name="head_fpv" pos="0.015 0 0.025" euler="1.5707963 -1.5707963 0" fovy="80"/>
+```
+
+| 属性 | 値 | 意味 |
+|------|----|------|
+| `name` | `head_fpv` | カメラ識別名（`merimujoco.py` が名前で検索するため**変更不可**） |
+| `pos` | `0.015 0 0.025` | 頭部ボディ座標系での取り付け位置（メートル） |
+| `euler` | `1.5707963 -1.5707963 0` | Rx(π/2)・Ry(-π/2) の回転で前方 +X 向き・上方 +Z の視軸に変換 |
+| `fovy` | `80` | 垂直画角（度） |
+
+カメラが見つからない場合、`--view fpv` は警告を出してデフォルト視点にフォールバックし、`--stream` はエラーを出してストリーミングを無効化します。  
+独自モデルを使用する場合は、同じ `name="head_fpv"` のカメラ要素を XML に追加してください。
+
+
+
+#### 配信先
+
+| 項目 | 値 |
+|------|----|
+| Redis キー | `meridis_frame_pub` |
+| 配信レート | 1-100Hz（`--stream` 単体では 10Hz） |
+| 解像度 | 320×240 |
+| 画像フォーマット | JPEG（品質80） |
+
+#### ペイロード形式
+
+```json
+{
+  "meridim90": [0.0, 123.0, ...],
+  "frame": "<Base64エンコードされたJPEG>"
+}
+```
+
+- `meridim90`: フレームレンダリング時点の Meridim90 配列（全90要素）。画像とロボット状態が同一シミュレーションステップに対応することを保証。
+- `frame`: JPEG画像を Base64 エンコードした文字列。
+- カウンタは `meridim90[1]` に含まれるため、独立した `count` フィールドは持たない。
+
+#### FPVビューア
+
+- `merimujoco.py`の FPV ストリーミングを受信・表示するテスト用のビューワソフトです。
+
+```bash
+python mrd_stream_viewer.py [--redis redis.json] [--key meridis_frame_pub] [--fps 30]
+```
+
+画面左上に `meridim90[1]` のカウンタ値を表示します。
+
+---
+
 ### タッチ検出球 (`--sphere`)
+
+- 目標位置の「タッチ検出球」に対して、ロボットの手・足・体が接近・到達したかを判定する機能です。
+- ロボットのカメラ映像と自然言語指示を元にロボットの挙動を決定するVLA(Vision-Lanaguate-Action)のための学習に有用です
 
 `--sphere X,Y,Z` を指定すると、ワールド座標に球を配置してロボットとの接触を検出します。  
 球の状態は Meridim90 の `id80〜id83` に書き込まれ、Redis 経由で外部システムへ通知されます。
+
+#### シーン XML への sphere 定義（必須）
+
+タッチ球を表示し、かつ接触判定に使うには、読み込む MuJoCo のシーン XML に球そのものが定義されている必要があります。  
+実際の `roid1_mjcf/scene.xml` では、`worldbody` の中に次のような body と geom が置かれています。
+
+```xml
+<!-- Touch detection sphere: world-fixed, hidden unless --sphere is specified. -->
+<body name="touch_sphere_body" pos="0.05 0.0 -1.0">
+  <geom name="touch_sphere" type="sphere" size="0.01" rgba="1 0 0 1" contype="1" conaffinity="1"/>
+</body>
+```
+
+| 要素 | 値 | 意味 |
+|------|----|------|
+| `body name` | `touch_sphere_body` | 球のワールド座標上の配置先。`merimujoco.py` がこの body の位置を書き換えて球を移動する |
+| `geom name` | `touch_sphere` | 球の実体。`merimujoco.py` がこの geom を名前で検索して表示・接触判定に利用する |
+| `type` | `sphere` | 球形ジオメトリとして定義 |
+| `size` | `0.01` | 半径 1 cm |
+| `rgba` | `1 0 0 1` | 赤色表示。`--sphere` 未指定時はコード側で alpha を 0 にして非表示化 |
+| `contype` / `conaffinity` | `1` / `1` | 他ジオメトリとの接触判定を有効化 |
+
+`merimujoco.py` は起動時に `touch_sphere` と `touch_sphere_body` を名前で検索しており、見つからないと球の表示や位置更新ができません。  
+そのため、独自モデルや独自シーンを使う場合も、少なくとも同名の `touch_sphere_body` と `touch_sphere` を XML に定義しておく必要があります。
+
+#### sphere が見つからない場合の処理
+
+`merimujoco.py` は起動時にまず `touch_sphere` の geom を検索し、見つからない場合は警告を出します。
+
+```text
+touch_sphere geom not found in model
+```
+
+この場合、球の表示、接触検出、非表示化は行われません。`--sphere` を指定しても、シミュレータ内に球の実体がないため、見た目にも接触判定にも反映されません。
+
+一方、`touch_sphere` geom はあるが `touch_sphere_body` が無い場合、球の実体は存在しても位置を `--sphere X,Y,Z` で移動できません。  
+このときコードは body 位置の書き換え、接触後の初期位置への退避、リセット時の指定位置への復帰を `SPHERE_BODY_ID >= 0` の条件でスキップします。
+
+要するに、正常に動かすには次の 2 つが両方必要です。
+
+- `geom name="touch_sphere"`: 球の表示と接触判定の本体
+- `body name="touch_sphere_body"`: 球の配置、移動、リセット復帰のための親 body
 
 #### Meridim90 への書き込み仕様
 
@@ -244,42 +353,3 @@ merimujoco が書き込む `meridis_sim_pub`（write キー）の主なインデ
 - `id81〜id83` は `meridis_sim_pub`（write キー）に常時出力されるため、外部システムは `--sphere` の引数値を別途知らなくても球の現在位置を取得できます。
 - `--sphere` 未指定時は本機能は無効です。
 
----
-
-### FPV ストリーミング (`--stream [HZ]`)
-
-`--stream` を指定すると、カメラ `head_fpv` のオフスクリーンレンダリング映像を Meridim90 データとともに Redis へ配信します。数値を付けて `--stream 30` のように指定すると、1-100Hz の範囲で送信間隔を調整できます。数値を省略した場合は 10Hz で配信します。
-
-#### 配信先
-
-| 項目 | 値 |
-|------|----|
-| Redis キー | `meridis_frame_pub` |
-| 配信レート | 1-100Hz（`--stream` 単体では 10Hz） |
-| 解像度 | 320×240 |
-| 画像フォーマット | JPEG（品質80） |
-
-#### ペイロード形式
-
-```json
-{
-  "meridim90": [0.0, 123.0, ...],
-  "frame": "<Base64エンコードされたJPEG>"
-}
-```
-
-- `meridim90`: フレームレンダリング時点の Meridim90 配列（全90要素）。画像とロボット状態が同一シミュレーションステップに対応することを保証。
-- `frame`: JPEG画像を Base64 エンコードした文字列。
-- カウンタは `meridim90[1]` に含まれるため、独立した `count` フィールドは持たない。
-
-#### FPVビューア
-
-`mrd_stream_viewer.py` で`merimujoco.py`の FPV ストリーミングを受信・表示できます。
-
-```bash
-python mrd_stream_viewer.py [--redis redis.json] [--key meridis_frame_pub] [--fps 30]
-```
-
-画面左上に `meridim90[1]` のカウンタ値を表示します。
-
----

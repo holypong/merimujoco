@@ -5,6 +5,7 @@ __pycache__/
 sample/
 test
 urdf
+.claude
 
 # C extensions
 *.so
