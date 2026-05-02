@@ -73,7 +73,7 @@ Redis接続設定を JSON ファイルで管理します。
 | [redis-mgr.json](redis-mgr.json) | `meridis_mgr_pub` | `meridis_sim_pub` | ✅ true | ❌ false | Sim2Real/Real2Sim（リアル←→シミュレーション） |
 | [redis-calc.json](redis-calc.json) | `meridis_calc_pub` | `meridis_sim_pub` | ✅ true | ✅ true | 動作生成プログラムとの連携（双方向） |
 | [redis-console.json](redis-console.json) | `meridis_console_pub` | `meridis_sim_pub` | ✅ true | ❌ false | コンソール入力からの制御【予告】 |
-| [redis-mcp.json](redis-mcp.json) | `meridis_mcp_pub` | `meridis_sim_pub` | ✅ true | ❌ false | MCPサーバーとの連携【予告】 |
+| [redis-ai.json](redis-ai.json) | `meridis_ai_pub` | `meridis_sim_pub` | ✅ true | ❌ false | AIエージェントとの連携【予告】 |
 
 ---
 ## 技術詳細
@@ -85,7 +85,7 @@ flowchart LR
   Controller[外部システム]
   Simulation[merimujoco.py]
   subgraph Redisサーバー
-    ReadKey["【read キー】<br/>meridis_mgr_pub/<br>meridis_calc_pub/<br>meridis_console_pub/<br> meridis_mcp_pub"]
+    ReadKey["【read キー】<br/>meridis_mgr_pub/<br>meridis_calc_pub/<br>meridis_console_pub/<br> meridis_ai_pub"]
     WriteKey["【write キー】<br/>meridis_sim_pub"]
   end
   Controller -- 書き込み/送信 --> ReadKey

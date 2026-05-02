@@ -74,7 +74,7 @@ This repository includes 6 JSON configuration files for different use cases. All
 | [redis-mgr.json](redis-mgr.json) | `meridis_mgr_pub` | `meridis_sim_pub` | ✅ true | ❌ false | Sim2Real / Real2Sim |
 | [redis-calc.json](redis-calc.json) | `meridis_calc_pub` | `meridis_sim_pub` | ✅ true | ✅ true | Integration with motion generation programs (bidirectional) |
 | [redis-console.json](redis-console.json) | `meridis_console_pub` | `meridis_sim_pub` | ✅ true | ❌ false | Control from console input [planned] |
-| [redis-mcp.json](redis-mcp.json) | `meridis_mcp_pub` | `meridis_sim_pub` | ✅ true | ❌ false | Integration with MCP server [planned] |
+| [redis-ai.json](redis-ai.json) | `meridis_ai_pub` | `meridis_sim_pub` | ✅ true | ❌ false | Integration with AI agent [planned] |
 
 ---
 ## Technical Details
@@ -86,7 +86,7 @@ flowchart LR
   Controller[External System]
   Simulation[merimujoco.py]
   subgraph Redis Server
-    ReadKey["[read key]<br/>meridis_mgr_pub/<br>meridis_calc_pub/<br>meridis_console_pub/<br> meridis_mcp_pub"]
+    ReadKey["[read key]<br/>meridis_mgr_pub/<br>meridis_calc_pub/<br>meridis_console_pub/<br> meridis_ai_pub"]
     WriteKey["[write key]<br/>meridis_sim_pub"]
   end
   Controller -- write/send --> ReadKey
