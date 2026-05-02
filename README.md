@@ -1,5 +1,7 @@
 # merimujoco
 
+[English](README_EN.md) / Japanese
+
 **merimujoco**は、物理シミュレーションMuJoCoとロボット実機のSimToReal、RealToSimを容易に実現するためのツールです。  
 シミュレーション上で実行したロボットの動きのデータをリアルタイムでロボット実機に送って動作させることができます。
 逆にロボット実機の動作データをシミュレータに送ることもできます。  
