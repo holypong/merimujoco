@@ -313,8 +313,13 @@ Congratulations! All basic operation checks are now complete.
 ## 📚 For Further Reading
 Reference materials for advancing research and engineering work:
 
-- **[Read the background, goals, and glossary](https://github.com/holypong/meridis/blob/main/README_concept_EN.md)** - Why merimujoco? Why meridis? What world does it open up?
-- **[Read the technical specification](README_advance_EN.md)** - Command details, config file structure, and customization
+[Read the technical specification](README_advance_EN.md) - Command details, config file structure, and customization
+
+[Background, Purpose, and Glossary](https://github.com/holypong/meridis/blob/main/README_concept.md)
+
+- Background for using Meridian as the base
+- Purpose of making this an MCP server
+- Glossary for physical AI and related terms
 
 ## License
 

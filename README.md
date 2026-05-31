@@ -318,9 +318,13 @@ python meridis_manager.py --mgr mgr_real2sim.json
 ## 📚 さらに詳しく知りたい方へ
 研究開発・エンジニアリングを進めるための仕様などの参考資料に続きます。  
 
-- **[背景・目的・用語集を読む](https://github.com/holypong/meridis/blob/main/README_concept.md)** - なぜmerimujoco?meridis?どんな世界がひろがる?
-- **[技術仕様を読む](README_advance.md)** - コマンド・設定ファイル詳細・カスタマイズ方法
+[技術仕様を読む](README_advance.md) - コマンド・設定ファイル詳細・カスタマイズ方法
 
+
+[背景・目的・用語集](https://github.com/holypong/meridis/blob/main/README_concept.md)
+- meridian をベースにする背景
+- mcpサーバーにする目的
+- フィジカルAI・エンボディードAIなどの用語集
 
 ## License
 
