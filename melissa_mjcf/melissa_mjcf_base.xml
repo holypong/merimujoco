@@ -174,19 +174,19 @@
             </body>
           </body>
         </body>
-        <body name="c_chest_dec1" pos="0.032 0.0 0.068898">
+        <body name="c_chest_dec1" pos="0.032 0.0 0.06">
           <inertial pos="-0.000818 0 -0.005248" mass="0.001" fullinertia="0.00001457 0.00000503 0.00000954 0 0 0" />
           <!-- text(displaytext) -->
           <geom class="visual" type="mesh" mesh="c_chest_dec1" rgba="1.0 1.0 1.0 1.0" group="1"/>
           <!-- text[(text) -->
         </body>
-        <body name="c_chest_dec1_1" pos="-0.01 0.0 0.068898">
+        <body name="c_chest_dec1_1" pos="-0.01 0.0 0.06">
           <inertial pos="-0.000818 0 -0.005248" mass="0.001" fullinertia="0.00001457 0.00000503 0.00000954 0 0 0" />
           <!-- text(displaytext) -->
           <geom class="visual" type="mesh" mesh="c_chest_dec2" rgba="1.0 1.0 1.0 1.0" group="1"/>
           <!-- text[(text) -->
         </body>
-        <body name="c_chest_dec3" pos="-0.014 0.0 0.03">
+        <body name="c_chest_dec3" pos="-0.014 0.0 0.02">
           <inertial pos="-0.015229 -0.000215 0.031462" mass="0.001" fullinertia="0.00006567 0.00003858 0.00004764 0.00000002 -0.00000012 0.0000005" />
           <!-- text(displaytext) -->
           <geom class="visual" type="mesh" mesh="c_chest_dec3" rgba="0.314 0.314 0.314 1.0" group="1"/>

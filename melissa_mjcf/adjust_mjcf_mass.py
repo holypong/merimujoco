@@ -126,9 +126,9 @@ def adjust_mass(input_path, output_path, servo_mass, servo_count, waist_mass, co
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--input', default='melissa_mjcf/melissa_mjcf_base.xml',
+    parser.add_argument('--input', default='melissa_mjcf_base.xml',
                          help='生エクスポートのMJCFファイル（質量プレースホルダー入り、変更しない）')
-    parser.add_argument('--output', default='melissa_mjcf/melissa_mjcf.xml',
+    parser.add_argument('--output', default='melissa_mjcf.xml',
                          help='質量調整後に書き出すMJCFファイル（シミュレーションで使用）')
     parser.add_argument('--servo-mass', type=float, default=0.0614,
                          help='サーボ1個の実測重量[kg]（例: KRS-4033HV=0.0614）')
