@@ -127,6 +127,12 @@
                 </body>
               </body>
             </body>
+            <body name="l_arm_upper_dec1" pos="0.0 0.0 0.0">
+              <inertial pos="0.00001 -0.000042 0.001632" mass="0.0030" fullinertia="1.59e-06 2.28e-06 3.69e-06 0 0 0" />
+              <!-- text(displaytext) -->
+              <geom class="visual" type="mesh" mesh="l_arm_upper_dec1" rgba="1.0 1.0 1.0 1.0" group="1"/>
+              <!-- text[(text) -->
+            </body>
           </body>
         </body>
         <body name="r_shoulder" pos="0.0076 -0.0753 0.068898">
@@ -166,7 +172,7 @@
                 </body>
               </body>
             </body>
-            <body name="r_arm_upper_dec1" pos="0.0 -0.0 -0.034">
+            <body name="r_arm_upper_dec1" pos="0.0 -0.0 0.0">
               <inertial pos="0.00001 0.000042 0.001632" mass="0.0030" fullinertia="1.59e-06 2.28e-06 3.69e-06 0 0 0" />
               <!-- text(displaytext) -->
               <geom class="visual" type="mesh" mesh="r_arm_upper_dec1" rgba="1.0 1.0 1.0 1.0" group="1"/>
@@ -174,19 +180,19 @@
             </body>
           </body>
         </body>
-        <body name="c_chest_dec1" pos="0.032 0.0 0.06">
+        <body name="c_chest_dec1" pos="0.032 0.0 0.0">
           <inertial pos="-0.000818 0 -0.005248" mass="0.0030" fullinertia="4.371e-05 1.509e-05 2.862e-05 0 0 0" />
           <!-- text(displaytext) -->
           <geom class="visual" type="mesh" mesh="c_chest_dec1" rgba="1.0 1.0 1.0 1.0" group="1"/>
           <!-- text[(text) -->
         </body>
-        <body name="c_chest_dec1_1" pos="-0.01 0.0 0.06">
+        <body name="c_chest_dec1_1" pos="-0.015 0.0 0.0">
           <inertial pos="-0.000818 0 -0.005248" mass="0.0030" fullinertia="4.371e-05 1.509e-05 2.862e-05 0 0 0" />
           <!-- text(displaytext) -->
           <geom class="visual" type="mesh" mesh="c_chest_dec2" rgba="1.0 1.0 1.0 1.0" group="1"/>
           <!-- text[(text) -->
         </body>
-        <body name="c_chest_dec3" pos="-0.014 0.0 0.02">
+        <body name="c_chest_dec3" pos="-0.018 0.0 0.02">
           <inertial pos="-0.015229 -0.000215 0.031462" mass="0.0030" fullinertia="0.00019701 0.00011574 0.00014292 6e-08 -3.6e-07 1.5e-06" />
           <!-- text(displaytext) -->
           <geom class="visual" type="mesh" mesh="c_chest_dec3" rgba="0.314 0.314 0.314 1.0" group="1"/>
