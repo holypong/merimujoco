@@ -145,14 +145,36 @@ class Twist:
     linear: Vector3
     angular: Vector3
 
-# Joint names list for 20260125 version
-# Must match the actuator order in the XML file for data.ctrl indexing.
-joint_names = [
-    "c_chest", "c_head", "l_shoulder_pitch", "l_shoulder_roll", "l_elbow_yaw", "l_elbow_pitch",
-    "r_shoulder_pitch", "r_shoulder_roll", "r_elbow_yaw", "r_elbow_pitch",
-    "l_hip_yaw", "l_hip_roll", "l_thigh_pitch", "l_knee_pitch", "l_ankle_pitch", "l_ankle_roll",
-    "r_hip_yaw", "r_hip_roll", "r_thigh_pitch", "r_knee_pitch", "r_ankle_pitch", "r_ankle_roll"
-]
+# ロボット種別ごとの設定（--model で切替）。
+# joint_names はXMLの実際の関節名ではなく、joint_to_meridisのキーと対応する
+# 読みやすいエイリアス名。各モデルの<actuator>並び順に位置的に対応させる必要がある
+# （data.ctrl[joint_names.index(name)] でアクセスするため）。
+ROBOT_CONFIGS = {
+    "roid1": {
+        "scene_path": "roid1_mjcf/scene.xml",
+        "joint_names": [
+            "c_chest", "c_head", "l_shoulder_pitch", "l_shoulder_roll", "l_elbow_yaw", "l_elbow_pitch",
+            "r_shoulder_pitch", "r_shoulder_roll", "r_elbow_yaw", "r_elbow_pitch",
+            "l_hip_yaw", "l_hip_roll", "l_thigh_pitch", "l_knee_pitch", "l_ankle_pitch", "l_ankle_roll",
+            "r_hip_yaw", "r_hip_roll", "r_thigh_pitch", "r_knee_pitch", "r_ankle_pitch", "r_ankle_roll",
+        ],  # 22軸（股関節ヨー軸あり）
+        "foot_body_names": ("l_foot", "r_foot"),
+        "hand_body_names": ("l_arm_lower", "r_arm_lower"),
+        "hip_yaw_center_body_names": ("l_hipjoint_upper", "r_hipjoint_upper"),
+    },
+    "melissa": {
+        "scene_path": "melissa_mjcf/scene.xml",
+        "joint_names": [
+            "c_chest", "c_head", "l_shoulder_pitch", "l_shoulder_roll", "l_elbow_yaw", "l_elbow_pitch",
+            "r_shoulder_pitch", "r_shoulder_roll", "r_elbow_yaw", "r_elbow_pitch",
+            "l_hip_roll", "l_thigh_pitch", "l_knee_pitch", "l_ankle_pitch", "l_ankle_roll",
+            "r_hip_roll", "r_thigh_pitch", "r_knee_pitch", "r_ankle_pitch", "r_ankle_roll",
+        ],  # 20軸。股関節ヨー軸(l_hip_yaw/r_hip_yaw)が存在しないため除外。
+        "foot_body_names": ("l_foot_middle", "r_foot_middle"),
+        "hand_body_names": ("l_hand", "r_hand"),
+        "hip_yaw_center_body_names": ("l_hipjoint_lower", "r_hipjoint_lower"),  # ヨー軸ボディが無いため代替参照点
+    },
+}
 
 
 joint_to_meridis = {
@@ -216,6 +238,12 @@ parser.add_argument('--sphere',
                     default=None,
                     metavar='X,Y,Z',
                     help='Touch sphere position in meters (e.g. --sphere 0.15,-0.05,0.35)') # 0.15,-0.05,0.1 で右手が到達可能な位置
+parser.add_argument('--model',
+                    type=str,
+                    choices=list(ROBOT_CONFIGS.keys()),
+                    default='roid1',
+                    dest='robot_type',
+                    help='Robot model to load: roid1 (22-axis, has hip-yaw, default) or melissa (20-axis, no hip-yaw)')
 
 def stream_hz(value):
     try:
@@ -234,6 +262,9 @@ parser.add_argument('--stream',
                     metavar='HZ',
                     help='Enable offscreen FPV streaming to Redis key "meridis_frame_pub" via camera "head_fpv" (default: 10 Hz, range: 1-100)')
 args = parser.parse_args()
+
+ROBOT_CFG = ROBOT_CONFIGS[args.robot_type]
+joint_names = ROBOT_CFG["joint_names"]
 
 FLG_GET_FOOT = args.getfoot  # 両足位置書き込みフラグ
 FLG_GET_HAND = args.gethand  # 両手位置書き込みフラグ
@@ -273,9 +304,14 @@ ang_vel_z = 0.0     # 旋回速度
 imu_lock = threading.Lock()
 sim_lock = threading.Lock()
 
-# モデルを読み込む
-model = mujoco.MjModel.from_xml_path('roid1_mjcf/scene.xml')
+# モデルを読み込む（--model で roid1/melissa を切替）
+model = mujoco.MjModel.from_xml_path(ROBOT_CFG["scene_path"])
 data = mujoco.MjData(model)
+logger.info(f"Robot type: {args.robot_type} ({ROBOT_CFG['scene_path']})")
+
+if len(joint_names) != model.nu:
+    logger.error(f"joint_names count ({len(joint_names)}) does not match model actuator count ({model.nu}) for robot_type='{args.robot_type}'")
+    sys.exit(1)
 
 # FPVカメラID (XMLの head_fpv カメラを使用)
 FPV_CAM_ID = -1
@@ -369,25 +405,30 @@ def motor_controller_thread():
     # chest_body_idを取得
     chest_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "c_chest")
     # foot_body_idを取得
-    l_foot_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "l_foot")
-    r_foot_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "r_foot")
+    l_foot_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, ROBOT_CFG["foot_body_names"][0])
+    r_foot_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, ROBOT_CFG["foot_body_names"][1])
     # 左右の手先body IDを取得
-    l_hand_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "l_arm_lower")
-    r_hand_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "r_arm_lower")
+    l_hand_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, ROBOT_CFG["hand_body_names"][0])
+    r_hand_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, ROBOT_CFG["hand_body_names"][1])
 
-    # 手先端のローカルオフセットをcollision geom（カプセル）から取得
-    # カプセルのZ軸先端 = geom_pos_z - half_length - radius
+    # 手先端のローカルオフセットをcollision geomから取得
+    # カプセル/シリンダーのZ軸先端 = geom_pos_z - half_length - radius
+    # ボックスのZ軸先端 = geom_pos_z - half_size_z
     def get_hand_tip_local_offset(hand_body_id):
         tip_local = np.zeros(3)
         min_z = 0.0
         for gid in range(model.ngeom):
             if model.geom_bodyid[gid] != hand_body_id:
                 continue
-            if model.geom_type[gid] not in (mujoco.mjtGeom.mjGEOM_CAPSULE, mujoco.mjtGeom.mjGEOM_CYLINDER):
-                continue
             pos = model.geom_pos[gid]       # ローカル座標のgeom中心
-            sz  = model.geom_size[gid]      # [radius, half_length, ...]
-            tip_z = pos[2] - sz[1] - sz[0]  # 先端Z（下方向）
+            sz  = model.geom_size[gid]      # capsule/cylinder: [radius, half_length, ...] / box: [x, y, z]
+            geom_type = model.geom_type[gid]
+            if geom_type in (mujoco.mjtGeom.mjGEOM_CAPSULE, mujoco.mjtGeom.mjGEOM_CYLINDER):
+                tip_z = pos[2] - sz[1] - sz[0]  # 先端Z（下方向）
+            elif geom_type == mujoco.mjtGeom.mjGEOM_BOX:
+                tip_z = pos[2] - sz[2]
+            else:
+                continue
             if tip_z < min_z:
                 min_z = tip_z
                 tip_local = np.array([pos[0], pos[1], tip_z])
@@ -399,8 +440,8 @@ def motor_controller_thread():
         l_hand_tip_local[0], l_hand_tip_local[1], l_hand_tip_local[2],
         r_hand_tip_local[0], r_hand_tip_local[1], r_hand_tip_local[2])
     # 左右の股関節ヨー軸中心（body原点）を取得
-    l_hip_yaw_center_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "l_hipjoint_upper")
-    r_hip_yaw_center_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "r_hipjoint_upper")
+    l_hip_yaw_center_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, ROBOT_CFG["hip_yaw_center_body_names"][0])
+    r_hip_yaw_center_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, ROBOT_CFG["hip_yaw_center_body_names"][1])
 
     # 足底面のZオフセット（body原点→足底面最下点）をコリジョンジオメトリから取得
     def get_foot_sole_z_offset(foot_body_id):
