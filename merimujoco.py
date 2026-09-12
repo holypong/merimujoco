@@ -170,7 +170,7 @@ ROBOT_CONFIGS = {
             "l_hip_roll", "l_thigh_pitch", "l_knee_pitch", "l_ankle_pitch", "l_ankle_roll",
             "r_hip_roll", "r_thigh_pitch", "r_knee_pitch", "r_ankle_pitch", "r_ankle_roll",
         ],  # 20軸。股関節ヨー軸(l_hip_yaw/r_hip_yaw)が存在しないため除外。
-        "foot_body_names": ("l_foot_middle", "r_foot_middle"),
+        "foot_body_names": ("l_foot", "r_foot"),
         "hand_body_names": ("l_hand", "r_hand"),
         "hip_yaw_center_body_names": ("l_hipjoint_lower", "r_hipjoint_lower"),  # ヨー軸ボディが無いため代替参照点
     },
