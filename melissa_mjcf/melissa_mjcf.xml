@@ -1,5 +1,5 @@
 <mujoco model="melissa_mjcf">
-  <compiler angle="radian" meshdir="assets" autolimits="true" balanceinertia="true" />
+  <compiler angle="radian" meshdir="assets" autolimits="true" />
 
   <option timestep="0.002" iterations="30" cone="elliptic" impratio="100" />
 
@@ -8,11 +8,11 @@
     <joint damping="0.1" armature="0.01" frictionloss="0.005"/>
     <position inheritrange="1" timeconst="0.01"/>
     <geom friction="0.4" margin="0.001" condim="3"/>
-    <!-- text[textFgroup=0 -->
+    <!-- textãƒ¼textï¼šgroup=0 -->
     <default class="collision">
       <geom group="0"/>
     </default>
-    <!-- textFgroup=1(text) -->
+    <!-- textï¼šgroup=1(text) -->
     <default class="visual">
       <geom contype="0" conaffinity="0" group="1"/>
     </default>
@@ -62,284 +62,284 @@
   </asset>
 
   <worldbody>
-    <body name="c_waist" pos="0 0 0.5">
+    <body name="c_pelvis" pos="0 0 0.5">
       <freejoint />
-      <inertial pos="0.003001 0.000264 -0.026784" mass="0.0100" fullinertia="0.0003868 0.0001304 0.0003835 5e-07 -6.1e-06 -4e-07" />
+      <inertial pos="0.008222 0.000001 -0.024315" mass="0.192" fullinertia="0.00019356 0.00006706 0.00018939 0 0 0" />
       <!-- text(displaytext) -->
       <geom class="visual" type="mesh" mesh="c_waist" rgba="0.314 0.314 0.314 1.0" group="1"/>
-      <!-- text[(text) -->
+      <!-- textãƒ¼(text) -->
       <geom class="collision" type="box" size="0.0115 0.046 0.014" pos="0.0095 0.0 -0.0239" quat="1.0 0.0 0.0 0.0" group="3"/>
-      <body name="c_chest" pos="0.0 0.0 0.0">
-        <joint name="c_chest_yaw" type="hinge" pos="0 0 0" axis="0 0 1" range="-3.141592653589793 3.141592653589793" limited="true" margin="0.0035" armature="0.01" frictionloss="0.005" damping="0.18" />
-        <inertial pos="-0.001218 -0.000003 0.028167" mass="0.0614" fullinertia="0.001592102 0.001477898 0.000742326 0 -8.596e-06 0" />
+      <body name="c_torso" pos="0.0 0.0 0.0">
+        <joint name="c_spine_01_yp" type="hinge" pos="0 0 0" axis="0 0 1" range="-1.570796326794897 1.570796326794897" limited="true" margin="0.0035" armature="0.01" frictionloss="0.005" damping="0.18" />
+        <inertial pos="0.008163 -0.000214 0.05305" mass="0.138" fullinertia="0.00020947 0.00008863 0.00018018 0 0 0" />
         <!-- text(displaytext) -->
         <geom class="visual" type="mesh" mesh="c_chest" rgba="1.0 1.0 1.0 1.0" group="1"/>
-        <!-- text[(text) -->
+        <!-- textãƒ¼(text) -->
         <geom class="collision" type="box" size="0.01505 0.04 0.0335" pos="0.01 0.0001 0.0435" quat="1.0 0.0 0.0 0.0" group="3"/>
-        <body name="c_head_base" pos="0.0076 0.0 0.084298">
-          <inertial pos="-0.000374 0.000114 0.002888" mass="0.0030" fullinertia="2.43e-06 1.32e-06 3.66e-06 0 0 0" />
+        <body name="c_head" pos="0.0076 0.0 0.084298">
+          <inertial pos="0.00046 -0.000008 0.001866" mass="0.001" fullinertia="0.000000000001 0.000000000001 0.000000000001 0 0 0" />
           <!-- text(displaytext) -->
           <geom class="visual" type="mesh" mesh="c_head_base" rgba="1.0 1.0 1.0 1.0" group="1"/>
-          <!-- text[(text) -->
-          <body name="c_head" pos="0.0 0.0 0.023">
-            <joint name="c_head_yaw" type="hinge" pos="0 0 0" axis="0 0 1" range="-3.141592653589793 3.141592653589793" limited="true" margin="0.0035" armature="0.01" frictionloss="0.005" damping="0.18" />
-            <inertial pos="0.009231 0.000876 0.007414" mass="0.0614" fullinertia="0.000216128 0.000268318 0.000235162 -1.842e-06 5.526e-06 -3.07e-06" />
+          <!-- textãƒ¼(text) -->
+          <body name="c_head_1" pos="0.0 0.0 0.025">
+            <joint name="c_neck_zy" type="hinge" pos="0 0 0" axis="0 0 1" range="-2.268928027592628 2.268928027592628" limited="true" margin="0.0035" armature="0.01" frictionloss="0.005" damping="0.18" />
+            <inertial pos="0.010343 0 -0.000045" mass="0.064" fullinertia="0.00001407 0.00001728 0.00001698 0 0 0" />
             <!-- text(displaytext) -->
             <geom class="visual" type="mesh" mesh="c_head" rgba="0.314 0.314 0.314 1.0" group="1"/>
-            <!-- text[(text) -->
+            <!-- textãƒ¼(text) -->
             <geom class="collision" type="box" size="0.0215 0.016 0.01305" pos="0.0095 0.0001 0.0034" quat="1.0 0.0 0.0 0.0" group="3"/>
           </body>
         </body>
-        <body name="l_shoulder" pos="0.0076 0.0753 0.068898">
-          <joint name="l_shoulder_pitch" type="hinge" pos="0 0 0" axis="0 1 0" range="-3.141592653589793 3.141592653589793" limited="true" margin="0.0035" armature="0.01" frictionloss="0.005" damping="0.18" />
-          <inertial pos="-0.000895 0.027312 -0.000629" mass="0.0614" fullinertia="0.000986698 0.00050962 0.00106836 -6.5698e-05 -4.298e-06 -0" />
+        <body name="l_shoulder" pos="0.00760076 0.075 0.068898">
+          <joint name="l_shoulder_yp" type="hinge" pos="0 0 0" axis="0 1 0" range="-3.141592653589793 1.570796326794897" limited="true" margin="0.0035" armature="0.01" frictionloss="0.005" damping="0.18" />
+          <inertial pos="-0.000048 -0.01572 0.000096" mass="0.009175144284" fullinertia="0.00000112 0.00000293 0.00000292 0 0 0" />
           <!-- text(displaytext) -->
           <geom class="visual" type="mesh" mesh="l_shoulder" rgba="1.0 1.0 1.0 1.0" group="1"/>
-          <!-- text[(text) -->
+          <!-- textãƒ¼(text) -->
           <geom class="collision" type="box" size="0.0215 0.0005 0.011" pos="0.0007 -0.0192 -0.0001" quat="1.0 0.0 0.0 0.0" group="3"/>
           <body name="l_arm_upper" pos="0.0 0.0 0.0">
-            <joint name="l_arm_upper_roll" type="hinge" pos="0 0 0" axis="1 0 0" range="-3.141592653589793 3.141592653589793" limited="true" margin="0.0035" armature="0.01" frictionloss="0.005" damping="0.18" />
-            <inertial pos="-0.001161 -0.000778 -0.026088" mass="0.0614" fullinertia="0.00096091 0.001029064 0.000435326 -4.912e-06 6.9996e-05 1.228e-06" />
+            <joint name="l_shoulder_xr" type="hinge" pos="0 0 0" axis="1 0 0" range="-0.349065850398866 3.141592653589793" limited="true" margin="0.0035" armature="0.01" frictionloss="0.005" damping="0.18" />
+            <inertial pos="0.002188 -0.000334 -0.028819" mass="0.128" fullinertia="0.00008416 0.00008848 0.0000411 0 0 0" />
             <!-- text(displaytext) -->
             <geom class="visual" type="mesh" mesh="l_arm_upper" rgba="0.314 0.314 0.314 1.0" group="1"/>
-            <!-- text[(text) -->
+            <!-- textãƒ¼(text) -->
             <geom class="collision" type="box" size="0.0115 0.011 0.03605" pos="0.0047 0.0 -0.029" quat="1.0 0.0 0.0 0.0" group="3"/>
             <body name="l_elbow" pos="0.014199 0.0003 -0.09">
-              <joint name="l_elbow_yaw" type="hinge" pos="0 0 0" axis="0 0 1" range="-3.141592653589793 3.141592653589793" limited="true" margin="0.0035" armature="0.01" frictionloss="0.005" damping="0.18" />
-              <inertial pos="0.000708 -0.004855 0.011432" mass="0.0614" fullinertia="0.000144904 5.219e-05 0.000130168 0 0 -1.842e-05" />
+              <joint name="l_elbow_zy" type="hinge" pos="0 0 0" axis="0 0 1" range="-2.268928027592628 2.268928027592628" limited="true" margin="0.0035" armature="0.01" frictionloss="0.005" damping="0.18" />
+              <inertial pos="-0 -0.000001 0.01534" mass="0.009003630818" fullinertia="0.00000272 0.00000108 0.00000272 0 0 0" />
               <!-- text(displaytext) -->
               <geom class="visual" type="mesh" mesh="l_elbow" rgba="1.0 1.0 1.0 1.0" group="1"/>
-              <!-- text[(text) -->
+              <!-- textãƒ¼(text) -->
               <geom class="collision" type="box" size="0.011 0.0215 0.0005" pos="0.0006 -0.0002 0.0195" quat="1.0 0.0 0.0 0.0" group="3"/>
               <body name="l_arm_lower" pos="0.0 0.0 0.0">
-                <joint name="l_arm_lower_pitch" type="hinge" pos="0 0 0" axis="0 1 0" range="-3.141592653589793 3.141592653589793" limited="true" margin="0.0035" armature="0.01" frictionloss="0.005" damping="0.18" />
-                <inertial pos="-0.001028 0.007337 -0.009175" mass="0.0614" fullinertia="0.000268318 0.000235162 0.000216128 3.07e-06 -1.842e-06 -5.526e-06" />
+                <joint name="l_elbow_yp" type="hinge" pos="0 0 0" axis="0 1 0" range="-1.74532925199433 1.74532925199433" limited="true" margin="0.0035" armature="0.01" frictionloss="0.005" damping="0.18" />
+                <inertial pos="0 -0.000029 -0.010357" mass="0.064" fullinertia="0.00002082 0.00002152 0.00001749 0 0 0" />
                 <!-- text(displaytext) -->
                 <geom class="visual" type="mesh" mesh="l_arm_lower" rgba="0.314 0.314 0.314 1.0" group="1"/>
-                <!-- text[(text) -->
+                <!-- textãƒ¼(text) -->
                 <geom class="collision" type="box" size="0.016 0.00805 0.0165" pos="-0.0002 -0.0017 -0.0094" quat="1.0 0.0 0.0 0.0" group="3"/>
                 <body name="l_hand" pos="0.0 0.0 -0.025">
-                  <inertial pos="0.000164 -0.000259 -0.008033" mass="0.0030" fullinertia="1.629e-05 1.638e-05 8.07e-06 3.6e-07 2.7e-07 7.2e-07" />
+                  <inertial pos="0.00039 0.001962 -0.027451" mass="0.04261676532" fullinertia="0.0000167 0.00001705 0.00001263 0 0 0" />
                   <!-- text(displaytext) -->
                   <geom class="visual" type="mesh" mesh="l_hand" rgba="1.0 1.0 1.0 1.0" group="1"/>
-                  <!-- text[(text) -->
+                  <!-- textãƒ¼(text) -->
                   <geom class="collision" type="box" size="0.019 0.0175 0.02195" pos="0.0014 -0.0001 -0.0318" quat="1.0 0.0 0.0 0.0" group="3"/>
                 </body>
               </body>
             </body>
-            <body name="l_arm_upper_dec1" pos="0.0 0.0 0.0">
-              <inertial pos="0.00001 -0.000042 0.001632" mass="0.0030" fullinertia="1.59e-06 2.28e-06 3.69e-06 0 0 0" />
+            <body name="l_arm_upper_1" pos="0.0 0.0 0.0">
+              <inertial pos="0.00001 -0.000042 0.001632" mass="0.001" fullinertia="0.00000053 0.00000076 0.00000123 0 0 0" />
               <!-- text(displaytext) -->
               <geom class="visual" type="mesh" mesh="l_arm_upper_dec1" rgba="1.0 1.0 1.0 1.0" group="1"/>
-              <!-- text[(text) -->
+              <!-- textãƒ¼(text) -->
             </body>
           </body>
         </body>
-        <body name="r_shoulder" pos="0.0076 -0.0753 0.068898">
-          <joint name="r_shoulder_pitch" type="hinge" pos="0 0 0" axis="0 1 0" range="-3.141592653589793 3.141592653589793" limited="true" margin="0.0035" armature="0.01" frictionloss="0.005" damping="0.18" />
-          <inertial pos="-0.000895 -0.027312 -0.000629" mass="0.0614" fullinertia="0.000986698 0.00050962 0.00106836 6.5698e-05 -4.298e-06 0" />
+        <body name="r_shoulder" pos="0.0076 -0.075 0.068898">
+          <joint name="r_shoulder_yp" type="hinge" pos="0 0 0" axis="0 1 0" range="-3.141592653589793 1.570796326794897" limited="true" margin="0.0035" armature="0.01" frictionloss="0.005" damping="0.18" />
+          <inertial pos="-0.000048 0.01572 0.000096" mass="0.009175144284" fullinertia="0.00000112 0.00000293 0.00000292 0 0 0" />
           <!-- text(displaytext) -->
           <geom class="visual" type="mesh" mesh="r_shoulder" rgba="1.0 1.0 1.0 1.0" group="1"/>
-          <!-- text[(text) -->
+          <!-- textãƒ¼(text) -->
           <geom class="collision" type="box" size="0.0215 0.0005 0.011" pos="0.0007 0.0192 -0.0001" quat="1.0 0.0 0.0 0.0" group="3"/>
           <body name="r_arm_upper" pos="0.0 -0.0 0.0">
-            <joint name="r_arm_upper_roll" type="hinge" pos="0 0 0" axis="1 0 0" range="-3.141592653589793 3.141592653589793" limited="true" margin="0.0035" armature="0.01" frictionloss="0.005" damping="0.18" />
-            <inertial pos="-0.001161 0.000778 -0.026088" mass="0.0614" fullinertia="0.00096091 0.001029064 0.000435326 4.912e-06 6.9996e-05 -1.228e-06" />
+            <joint name="r_shoulder_xr" type="hinge" pos="0 0 0" axis="1 0 0" range="-3.141592653589793 0.349065850398866" limited="true" margin="0.0035" armature="0.01" frictionloss="0.005" damping="0.18" />
+            <inertial pos="0.002188 0.000334 -0.028819" mass="0.128" fullinertia="0.00008416 0.00008848 0.0000411 0 0 0" />
             <!-- text(displaytext) -->
             <geom class="visual" type="mesh" mesh="r_arm_upper" rgba="0.314 0.314 0.314 1.0" group="1"/>
-            <!-- text[(text) -->
+            <!-- textãƒ¼(text) -->
             <geom class="collision" type="box" size="0.0115 0.011 0.03605" pos="0.0047 0.0 -0.029" quat="1.0 0.0 0.0 0.0" group="3"/>
             <body name="r_elbow" pos="0.014199 -0.0003 -0.09">
-              <joint name="r_elbow_yaw" type="hinge" pos="0 0 0" axis="0 0 1" range="-3.141592653589793 3.141592653589793" limited="true" margin="0.0035" armature="0.01" frictionloss="0.005" damping="0.18" />
-              <inertial pos="0.000708 0.004855 0.011432" mass="0.0614" fullinertia="0.000144904 5.219e-05 0.000130168 0 0 1.842e-05" />
+              <joint name="r_elbow_zy" type="hinge" pos="0 0 0" axis="0 0 1" range="-2.268928027592628 2.268928027592628" limited="true" margin="0.0035" armature="0.01" frictionloss="0.005" damping="0.18" />
+              <inertial pos="-0 0.000001 0.01534" mass="0.009003630818" fullinertia="0.00000272 0.00000108 0.00000272 0 0 0" />
               <!-- text(displaytext) -->
               <geom class="visual" type="mesh" mesh="r_elbow" rgba="1.0 1.0 1.0 1.0" group="1"/>
-              <!-- text[(text) -->
+              <!-- textãƒ¼(text) -->
               <geom class="collision" type="box" size="0.011 0.0215 0.0005" pos="0.0006 0.0002 0.0195" quat="1.0 0.0 0.0 0.0" group="3"/>
               <body name="r_arm_lower" pos="0.0 -0.0 0.0">
-                <joint name="r_arm_lower_pitch" type="hinge" pos="0 0 0" axis="0 1 0" range="-3.141592653589793 3.141592653589793" limited="true" margin="0.0035" armature="0.01" frictionloss="0.005" damping="0.18" />
-                <inertial pos="-0.001028 -0.007337 -0.009175" mass="0.0614" fullinertia="0.000268318 0.000235162 0.000216128 -3.07e-06 -1.842e-06 5.526e-06" />
+                <joint name="r_elbow_yp" type="hinge" pos="0 0 0" axis="0 1 0" range="-1.74532925199433 1.74532925199433" limited="true" margin="0.0035" armature="0.01" frictionloss="0.005" damping="0.18" />
+                <inertial pos="0 0.000029 -0.010357" mass="0.064" fullinertia="0.00002082 0.00002152 0.00001749 0 0 0" />
                 <!-- text(displaytext) -->
                 <geom class="visual" type="mesh" mesh="r_arm_lower" rgba="0.314 0.314 0.314 1.0" group="1"/>
-                <!-- text[(text) -->
+                <!-- textãƒ¼(text) -->
                 <geom class="collision" type="box" size="0.016 0.00805 0.0165" pos="-0.0002 0.0017 -0.0094" quat="1.0 0.0 0.0 0.0" group="3"/>
                 <body name="r_hand" pos="0.0 -0.0 -0.025">
-                  <inertial pos="0.000164 0.000259 -0.008033" mass="0.0030" fullinertia="1.629e-05 1.638e-05 8.07e-06 -3.6e-07 2.7e-07 -7.2e-07" />
+                  <inertial pos="0.00039 -0.001962 -0.027451" mass="0.04261676532" fullinertia="0.0000167 0.00001705 0.00001263 0 0 0" />
                   <!-- text(displaytext) -->
                   <geom class="visual" type="mesh" mesh="r_hand" rgba="1.0 1.0 1.0 1.0" group="1"/>
-                  <!-- text[(text) -->
+                  <!-- textãƒ¼(text) -->
                   <geom class="collision" type="box" size="0.019 0.0175 0.02195" pos="0.0014 0.0001 -0.0318" quat="1.0 0.0 0.0 0.0" group="3"/>
                 </body>
               </body>
             </body>
-            <body name="r_arm_upper_dec1" pos="0.0 -0.0 0.0">
-              <inertial pos="0.00001 0.000042 0.001632" mass="0.0030" fullinertia="1.59e-06 2.28e-06 3.69e-06 0 0 0" />
+            <body name="r_arm_upper_1" pos="0.0 -0.0 0.0">
+              <inertial pos="0.00001 0.000042 0.001632" mass="0.001" fullinertia="0.00000053 0.00000076 0.00000123 0 0 0" />
               <!-- text(displaytext) -->
               <geom class="visual" type="mesh" mesh="r_arm_upper_dec1" rgba="1.0 1.0 1.0 1.0" group="1"/>
-              <!-- text[(text) -->
+              <!-- textãƒ¼(text) -->
             </body>
           </body>
         </body>
-        <body name="c_chest_dec1" pos="0.032 0.0 0.0">
-          <inertial pos="-0.000818 0 -0.005248" mass="0.0030" fullinertia="4.371e-05 1.509e-05 2.862e-05 0 0 0" />
+        <body name="c_torso_1" pos="0.03 0.0 0.0">
+          <inertial pos="-0.000837 0.000796 0.048916" mass="0.018897882204" fullinertia="0.00002585 0.00001353 0.00001615 0 0 0" />
           <!-- text(displaytext) -->
           <geom class="visual" type="mesh" mesh="c_chest_dec1" rgba="1.0 1.0 1.0 1.0" group="1"/>
-          <!-- text[(text) -->
+          <!-- textãƒ¼(text) -->
         </body>
-        <body name="c_chest_dec1_1" pos="-0.015 0.0 0.0">
-          <inertial pos="-0.000818 0 -0.005248" mass="0.0030" fullinertia="4.371e-05 1.509e-05 2.862e-05 0 0 0" />
+        <body name="c_torso_2" pos="-0.02 0.0 0.0">
+          <inertial pos="0.00085 0.000005 0.054249" mass="0.024663592741" fullinertia="0.00002813 0.00001547 0.00001771 0 0 0" />
           <!-- text(displaytext) -->
           <geom class="visual" type="mesh" mesh="c_chest_dec2" rgba="1.0 1.0 1.0 1.0" group="1"/>
-          <!-- text[(text) -->
+          <!-- textãƒ¼(text) -->
         </body>
-        <body name="c_chest_dec3" pos="-0.018 0.0 0.02">
-          <inertial pos="-0.015229 -0.000215 0.031462" mass="0.0030" fullinertia="0.00019701 0.00011574 0.00014292 6e-08 -3.6e-07 1.5e-06" />
+        <body name="c_torso_3" pos="-0.02 0.0 0.02">
+          <inertial pos="-0.020373 -0.000215 0.034654" mass="0.1" fullinertia="0.00019662 0.00016288 0.0001701 0 0 0" />
           <!-- text(displaytext) -->
           <geom class="visual" type="mesh" mesh="c_chest_dec3" rgba="0.314 0.314 0.314 1.0" group="1"/>
-          <!-- text[(text) -->
+          <!-- textãƒ¼(text) -->
           <geom class="collision" type="box" size="0.0164 0.04755 0.0378" pos="-0.0216 -0.0002 0.0341" quat="1.0 0.0 0.0 0.0" group="3"/>
         </body>
       </body>
-      <body name="l_hipjoint_lower" pos="0.007178 0.03441 -0.036066">
-        <joint name="l_hipjoint_lower_roll" type="hinge" pos="0 0 0" axis="1 0 0" range="-3.141592653589793 3.141592653589793" limited="true" margin="0.0035" armature="0.01" frictionloss="0.005" damping="0.18" />
-        <inertial pos="0.004372 0.004372 -0.022" mass="0.0614" fullinertia="0.000222268 0.000222268 0.00018727 6.14e-07 -2.9472e-05 2.9472e-05" />
+      <body name="l_hipjoint_lower" pos="0.007 0.035 -0.035">
+        <joint name="l_hipjoint_xr" type="hinge" pos="0 0 0" axis="1 0 0" range="-0.785398163397448 1.570796326794897" limited="true" margin="0.0035" armature="0.01" frictionloss="0.005" damping="0.18" />
+        <inertial pos="-0 -0.000001 -0.0215" mass="0.018007252528" fullinertia="0.00000446 0.00000446 0.0000055 0 0 0" />
         <!-- text(displaytext) -->
         <geom class="visual" type="mesh" mesh="l_hipjoint_lower" rgba="1.0 1.0 1.0 1.0" group="1"/>
-        <!-- text[(text) -->
+        <!-- textãƒ¼(text) -->
         <geom class="collision" type="box" size="0.015 0.015 0.002" pos="0.0 0.0 -0.022" quat="0.9999765121843216 0.0 0.0 0.006853836858232788" group="3"/>
-        <body name="l_leg_upper" pos="0.0 0.0 -0.044">
-          <joint name="l_leg_upper_pitch" type="hinge" pos="0 0 0" axis="0 1 0" range="-3.141592653589793 3.141592653589793" limited="true" margin="0.0035" armature="0.01" frictionloss="0.005" damping="0.18" />
-          <inertial pos="0.00023 0.000936 -0.033561" mass="0.0614" fullinertia="0.001168442 0.001231684 0.000544618 -1.5964e-05 -3.7454e-05 3.5612e-05" />
+        <body name="l_leg_upper" pos="0.0 0.0 -0.044" quat="0.99144486137381 0 -0.130526192220052 0">
+          <joint name="l_hipjoint_yp" type="hinge" pos="0 0 0" axis="0 1 0" range="-1.74532925199433 1.74532925199433" limited="true" margin="0.0035" armature="0.01" frictionloss="0.005" damping="0.18" />
+          <inertial pos="-0.003284 -0.000029 -0.033482" mass="0.128" fullinertia="0.00010226 0.00010726 0.00004467 0 0 0" />
           <!-- text(displaytext) -->
           <geom class="visual" type="mesh" mesh="l_leg_upper" rgba="0.314 0.314 0.314 1.0" group="1"/>
-          <!-- text[(text) -->
+          <!-- textãƒ¼(text) -->
           <geom class="collision" type="box" size="0.0144 0.0098 0.0379" pos="-0.0048 0.0 -0.0309" quat="0.9961946982539522 -0.00939290229655972 0.08574801400269064 0.012456911806646615" group="3"/>
-          <body name="l_leg_lower" pos="-0.014455 0.0 -0.057838">
-            <joint name="l_leg_lower_pitch" type="hinge" pos="0 0 0" axis="0 1 0" range="-3.141592653589793 3.141592653589793" limited="true" margin="0.0035" armature="0.01" frictionloss="0.005" damping="0.18" />
-            <inertial pos="0.009421 0.017241 -0.018488" mass="0.0614" fullinertia="0.000308842 0.00035305 0.000170692 3.3156e-05 8.5346e-05 1.9648e-05" />
+          <body name="l_leg_lower" pos="-0.014455 0.0 -0.057838" quat="0.953716950748227 0 0.300705799504273 0">
+            <joint name="l_knee_yp" type="hinge" pos="0 0 0" axis="0 1 0" range="-0.698131700797732 2.268928027592628" limited="true" margin="0.0035" armature="0.01" frictionloss="0.005" damping="0.18" />
+            <inertial pos="0.018665 -0.00003 -0.028158" mass="0.021380867066" fullinertia="0.00001386 0.00000883 0.00000916 0 0 0" />
             <!-- text(displaytext) -->
             <geom class="visual" type="mesh" mesh="l_leg_lower" rgba="1.0 1.0 1.0 1.0" group="1"/>
-            <!-- text[(text) -->
+            <!-- textãƒ¼(text) -->
             <geom class="collision" type="box" size="0.001 0.01525 0.00775" pos="0.0265 0.0 -0.0139" quat="0.9999765121843216 0.0 -0.006853836858232788 0.0" group="3"/>
-            <body name="l_ankle" pos="0.022945 0.0 -0.055438">
-              <joint name="l_ankle_pitch" type="hinge" pos="0 0 0" axis="0 1 0" range="-3.141592653589793 3.141592653589793" limited="true" margin="0.0035" armature="0.01" frictionloss="0.005" damping="0.18" />
-              <inertial pos="-0.021242 -0.002977 0.009662" mass="0.0614" fullinertia="0.000639174 0.001462548 0.001403604 -2.5174e-05 -4.605e-05 -1.3508e-05" />
+            <body name="l_ankle" pos="0.022945 0.0 -0.055438" quat="0.984807753012208 0 -0.17364817766693 0">
+              <joint name="l_ankle_yp" type="hinge" pos="0 0 0" axis="0 1 0" range="-1.745329251994329 2.268928027592628" limited="true" margin="0.0035" armature="0.01" frictionloss="0.005" damping="0.18" />
+              <inertial pos="-0.020604 -0.000056 0.010443" mass="0.128" fullinertia="0.00004687 0.00009215 0.00008479 0 0 0" />
               <!-- text(displaytext) -->
               <geom class="visual" type="mesh" mesh="l_ankle" rgba="0.314 0.314 0.314 1.0" group="1"/>
-              <!-- text[(text) -->
+              <!-- textãƒ¼(text) -->
               <geom class="collision" type="box" size="0.03555 0.01305 0.0165" pos="-0.0196 0.0015 0.0094" quat="1.0 0.0 0.0 0.0" group="3"/>
-              <body name="l_foot_middle" pos="0.0 0.0 0.0">
-                <joint name="l_foot_middle_roll" type="hinge" pos="0 0 0" axis="1 0 0" range="-3.141592653589793 3.141592653589793" limited="true" margin="0.0035" armature="0.01" frictionloss="0.005" damping="0.18" />
-                <inertial pos="-0.000293 0.003105 -0.027913" mass="0.0614" fullinertia="6.14e-07 1.228e-06 1.842e-06 0 0 0" />
+              <body name="l_foot" pos="0.0 0.0 0.0">
+                <joint name="l_ankle_xr" type="hinge" pos="0 0 0" axis="1 0 0" range="-1.570796326794897 1.570796326794897" limited="true" margin="0.0035" armature="0.01" frictionloss="0.005" damping="0.18" />
+                <inertial pos="-0.000293 0.003105 -0.027913" mass="0.061653386686" fullinertia="0.00003503 0.00005261 0.00006563 0 0 0" />
                 <!-- text(displaytext) -->
                 <geom class="visual" type="mesh" mesh="l_foot_middle" rgba="1.0 1.0 1.0 1.0" group="1"/>
-                <!-- text[(text) -->
+                <!-- textãƒ¼(text) -->
                 <geom class="collision" type="box" size="0.05 0.0315 0.005" pos="-0.0002 0.004 -0.031" quat="1.0 0.0 0.0 0.0" group="3"/>
               </body>
-              <body name="l_ankle_dec1" pos="0.0 0.0 0.0">
-                <inertial pos="-0.005843 -0.000048 0.013037" mass="0.0030" fullinertia="6.84e-06 1.152e-05 1.353e-05 -9e-08 2.7e-07 0" />
+              <body name="l_ankle_1" pos="0.0 0.0 0.0">
+                <inertial pos="-0.00329 -0.000035 0.014197" mass="0.011846329222" fullinertia="0.00000191 0.00000399 0.00000499 0 0 0" />
                 <!-- text(displaytext) -->
                 <geom class="visual" type="mesh" mesh="l_ankle_dec1" rgba="1.0 1.0 1.0 1.0" group="1"/>
-                <!-- text[(text) -->
+                <!-- textãƒ¼(text) -->
               </body>
             </body>
           </body>
           <body name="l_leg_upper_1" pos="0.0 0.0 0.0">
-            <inertial pos="0.00023 0.000936 -0.033561" mass="0.0030" fullinertia="5.709e-05 6.018e-05 2.661e-05 -7.8e-07 -1.83e-06 1.74e-06" />
+            <inertial pos="0.008859 0.000046 -0.042761" mass="0.012287186665" fullinertia="0.00000419 0.00000309 0.00000425 0 0 0" />
             <!-- text(displaytext) -->
             <geom class="visual" type="mesh" mesh="l_leg_upper_dec1" rgba="1.0 1.0 1.0 1.0" group="1"/>
-            <!-- text[(text) -->
+            <!-- textãƒ¼(text) -->
           </body>
         </body>
       </body>
-      <body name="r_hipjoint_lower" pos="0.007178 -0.034222 -0.036065">
-        <joint name="r_hipjoint_lower_roll" type="hinge" pos="0 0 0" axis="1 0 0" range="-3.141592653589793 3.141592653589793" limited="true" margin="0.0035" armature="0.01" frictionloss="0.005" damping="0.18" />
-        <inertial pos="0.004372 -0.004372 -0.022" mass="0.0614" fullinertia="0.000222268 0.000222268 0.00018727 -6.14e-07 -2.9472e-05 -2.9472e-05" />
+      <body name="r_hipjoint_lower" pos="0.007 -0.035 -0.035">
+        <joint name="r_hipjoint_xr" type="hinge" pos="0 0 0" axis="1 0 0" range="-1.570796326794897 0.785398163397448" limited="true" margin="0.0035" armature="0.01" frictionloss="0.005" damping="0.18" />
+        <inertial pos="-0 0.000001 -0.0215" mass="0.018007252528" fullinertia="0.00000446 0.00000446 0.0000055 0 0 0" />
         <!-- text(displaytext) -->
         <geom class="visual" type="mesh" mesh="r_hipjoint_lower" rgba="1.0 1.0 1.0 1.0" group="1"/>
-        <!-- text[(text) -->
+        <!-- textãƒ¼(text) -->
         <geom class="collision" type="box" size="0.015 0.015 0.002" pos="0.0 0.0 -0.022" quat="0.9999765121843216 0.0 0.0 -0.006853836858232788" group="3"/>
-        <body name="r_leg_upper" pos="0.0 -0.0 -0.044">
-          <joint name="r_leg_upper_pitch" type="hinge" pos="0 0 0" axis="0 1 0" range="-3.141592653589793 3.141592653589793" limited="true" margin="0.0035" armature="0.01" frictionloss="0.005" damping="0.18" />
-          <inertial pos="0.00023 -0.000936 -0.033561" mass="0.0614" fullinertia="0.001168442 0.001231684 0.000544618 1.5964e-05 -3.7454e-05 -3.5612e-05" />
+        <body name="r_leg_upper" pos="0.0 -0.0 -0.044" quat="0.99144486137381 0 -0.130526192220052 0">
+          <joint name="r_hipjoint_yp" type="hinge" pos="0 0 0" axis="0 1 0" range="-1.74532925199433 1.74532925199433" limited="true" margin="0.0035" armature="0.01" frictionloss="0.005" damping="0.18" />
+          <inertial pos="-0.003284 0.000029 -0.033482" mass="0.128" fullinertia="0.00010226 0.00010726 0.00004467 0 0 0" />
           <!-- text(displaytext) -->
           <geom class="visual" type="mesh" mesh="r_leg_upper" rgba="0.314 0.314 0.314 1.0" group="1"/>
-          <!-- text[(text) -->
+          <!-- textãƒ¼(text) -->
           <geom class="collision" type="box" size="0.0144 0.0098 0.0379" pos="-0.0048 0.0 -0.0309" quat="0.9961946982539522 0.00939290229655972 0.08574801400269064 -0.012456911806646615" group="3"/>
-          <body name="r_leg_lower" pos="-0.014455 -0.0 -0.057838">
-            <joint name="r_leg_lower_pitch" type="hinge" pos="0 0 0" axis="0 1 0" range="-3.141592653589793 3.141592653589793" limited="true" margin="0.0035" armature="0.01" frictionloss="0.005" damping="0.18" />
-            <inertial pos="0.009421 -0.017241 -0.018488" mass="0.0614" fullinertia="0.000308842 0.00035305 0.000170692 -3.3156e-05 8.5346e-05 -1.9648e-05" />
+          <body name="r_leg_lower" pos="-0.014455 -0.0 -0.057838" quat="0.953716950748227 0 0.300705799504273 0">
+            <joint name="r_knee_yp" type="hinge" pos="0 0 0" axis="0 1 0" range="-1.047197551196598 2.268928027592628" limited="true" margin="0.0035" armature="0.01" frictionloss="0.005" damping="0.18" />
+            <inertial pos="0.018665 0.00003 -0.028158" mass="0.021380867066" fullinertia="0.00001386 0.00000883 0.00000916 0 0 0" />
             <!-- text(displaytext) -->
             <geom class="visual" type="mesh" mesh="r_leg_lower" rgba="1.0 1.0 1.0 1.0" group="1"/>
-            <!-- text[(text) -->
+            <!-- textãƒ¼(text) -->
             <geom class="collision" type="box" size="0.001 0.01525 0.00775" pos="0.0265 0.0 -0.0139" quat="0.9999765121843216 -0.0 -0.006853836858232788 -0.0" group="3"/>
-            <body name="r_ankle" pos="0.022945 -0.0 -0.055438">
-              <joint name="r_ankle_pitch" type="hinge" pos="0 0 0" axis="0 1 0" range="-3.141592653589793 3.141592653589793" limited="true" margin="0.0035" armature="0.01" frictionloss="0.005" damping="0.18" />
-              <inertial pos="-0.021242 0.002977 0.009662" mass="0.0614" fullinertia="0.000639174 0.001462548 0.001403604 2.5174e-05 -4.605e-05 1.3508e-05" />
+            <body name="r_ankle" pos="0.022945 -0.0 -0.055438" quat="0.984807753012208 0 -0.17364817766693 0">
+              <joint name="r_ankle_yp" type="hinge" pos="0 0 0" axis="0 1 0" range="-1.745329251994329 2.268928027592628" limited="true" margin="0.0035" armature="0.01" frictionloss="0.005" damping="0.18" />
+              <inertial pos="-0.020604 0.000056 0.010443" mass="0.128" fullinertia="0.00004687 0.00009215 0.00008479 0 0 0" />
               <!-- text(displaytext) -->
               <geom class="visual" type="mesh" mesh="r_ankle" rgba="0.314 0.314 0.314 1.0" group="1"/>
-              <!-- text[(text) -->
+              <!-- textãƒ¼(text) -->
               <geom class="collision" type="box" size="0.03555 0.01305 0.0165" pos="-0.0196 -0.0015 0.0094" quat="1.0 0.0 0.0 0.0" group="3"/>
-              <body name="r_foot_middle" pos="0.0 -0.0 0.0">
-                <joint name="r_foot_middle_roll" type="hinge" pos="0 0 0" axis="1 0 0" range="-3.141592653589793 3.141592653589793" limited="true" margin="0.0035" armature="0.01" frictionloss="0.005" damping="0.18" />
-                <inertial pos="-0.000293 -0.003105 -0.027913" mass="0.0614" fullinertia="6.14e-07 1.228e-06 1.842e-06 0 0 0" />
+              <body name="r_foot" pos="0.0 -0.0 0.0">
+                <joint name="r_ankle_xr" type="hinge" pos="0 0 0" axis="1 0 0" range="-1.570796326794897 1.570796326794897" limited="true" margin="0.0035" armature="0.01" frictionloss="0.005" damping="0.18" />
+                <inertial pos="-0.000293 -0.003105 -0.027913" mass="0.061653386686" fullinertia="0.00003503 0.00005261 0.00006563 0 0 0" />
                 <!-- text(displaytext) -->
                 <geom class="visual" type="mesh" mesh="r_foot_middle" rgba="1.0 1.0 1.0 1.0" group="1"/>
-                <!-- text[(text) -->
+                <!-- textãƒ¼(text) -->
                 <geom class="collision" type="box" size="0.05 0.0315 0.005" pos="-0.0002 -0.004 -0.031" quat="1.0 0.0 0.0 0.0" group="3"/>
               </body>
-              <body name="r_ankle_dec1" pos="0.0 -0.0 0.0">
-                <inertial pos="-0.005843 0.000048 0.013037" mass="0.0030" fullinertia="6.84e-06 1.152e-05 1.353e-05 9e-08 2.7e-07 -0" />
+              <body name="r_ankle_1" pos="0.0 -0.0 0.0">
+                <inertial pos="-0.00329 0.000035 0.014197" mass="0.011846329222" fullinertia="0.00000191 0.00000399 0.00000499 0 0 0" />
                 <!-- text(displaytext) -->
                 <geom class="visual" type="mesh" mesh="r_ankle_dec1" rgba="1.0 1.0 1.0 1.0" group="1"/>
-                <!-- text[(text) -->
+                <!-- textãƒ¼(text) -->
               </body>
             </body>
           </body>
           <body name="r_leg_upper_1" pos="0.0 -0.0 0.0">
-            <inertial pos="0.00023 -0.000936 -0.033561" mass="0.0030" fullinertia="5.709e-05 6.018e-05 2.661e-05 7.8e-07 -1.83e-06 -1.74e-06" />
+            <inertial pos="0.008859 -0.000046 -0.042761" mass="0.012287186665" fullinertia="0.00000419 0.00000309 0.00000425 0 0 0" />
             <!-- text(displaytext) -->
             <geom class="visual" type="mesh" mesh="r_leg_upper_dec1" rgba="1.0 1.0 1.0 1.0" group="1"/>
-            <!-- text[(text) -->
+            <!-- textãƒ¼(text) -->
           </body>
         </body>
       </body>
-      <body name="c_waist_dec1" pos="0.0 0.0 0.0">
-        <inertial pos="-0.010914 -0.000011 -0.014359" mass="0.0030" fullinertia="9.984e-05 4.167e-05 0.00011598 0 -9.69e-06 -0" />
+      <body name="c_pelvis_1" pos="0.0 0.0 0.0">
+        <inertial pos="-0.010901 0 -0.011949" mass="0.039888345513" fullinertia="0.00004591 0.00002361 0.0000525 0 0 0" />
         <!-- text(displaytext) -->
         <geom class="visual" type="mesh" mesh="c_waist_dec1" rgba="1.0 1.0 1.0 1.0" group="1"/>
-        <!-- text[(text) -->
+        <!-- textãƒ¼(text) -->
       </body>
-      <body name="c_waist_dec2" pos="-0.0094 0.0 -0.035">
-        <inertial pos="0.000612 -0.00006 -0.000384" mass="0.0030" fullinertia="7.5e-07 6e-08 6.9e-07 0 0 0" />
+      <body name="c_pelvis_2" pos="0.025 0.0 -0.035">
+        <inertial pos="0.000612 -0.00006 -0.00388" mass="0.001263363485" fullinertia="0.0000003 0.00000009 0.0000003 0 0 0" />
         <!-- text(displaytext) -->
         <geom class="visual" type="mesh" mesh="c_waist_dec2" rgba="1.0 1.0 1.0 1.0" group="1"/>
-        <!-- text[(text) -->
+        <!-- textãƒ¼(text) -->
       </body>
     </body>
   </worldbody>
 
   <actuator>
-    <position name="c_chest_actuator" joint="c_chest_yaw" gear="1" kp="100" kv="1" forcerange="-3.001 3.001" forcelimited="true"/>
-    <position name="c_head_actuator" joint="c_head_yaw" gear="1" kp="100" kv="1" forcerange="-3.001 3.001" forcelimited="true"/>
-    <position name="l_shoulder_actuator" joint="l_shoulder_pitch" gear="1" kp="100" kv="1" forcerange="-3.001 3.001" forcelimited="true"/>
-    <position name="l_arm_upper_actuator" joint="l_arm_upper_roll" gear="1" kp="100" kv="1" forcerange="-3.001 3.001" forcelimited="true"/>
-    <position name="l_elbow_actuator" joint="l_elbow_yaw" gear="1" kp="100" kv="1" forcerange="-3.001 3.001" forcelimited="true"/>
-    <position name="l_arm_lower_actuator" joint="l_arm_lower_pitch" gear="1" kp="100" kv="1" forcerange="-3.001 3.001" forcelimited="true"/>
-    <position name="r_shoulder_actuator" joint="r_shoulder_pitch" gear="1" kp="100" kv="1" forcerange="-3.001 3.001" forcelimited="true"/>
-    <position name="r_arm_upper_actuator" joint="r_arm_upper_roll" gear="1" kp="100" kv="1" forcerange="-3.001 3.001" forcelimited="true"/>
-    <position name="r_elbow_actuator" joint="r_elbow_yaw" gear="1" kp="100" kv="1" forcerange="-3.001 3.001" forcelimited="true"/>
-    <position name="r_arm_lower_actuator" joint="r_arm_lower_pitch" gear="1" kp="100" kv="1" forcerange="-3.001 3.001" forcelimited="true"/>
-    <position name="l_hipjoint_lower_actuator" joint="l_hipjoint_lower_roll" gear="1" kp="100" kv="1" forcerange="-3.001 3.001" forcelimited="true"/>
-    <position name="l_leg_upper_actuator" joint="l_leg_upper_pitch" gear="1" kp="100" kv="1" forcerange="-3.001 3.001" forcelimited="true"/>
-    <position name="l_leg_lower_actuator" joint="l_leg_lower_pitch" gear="1" kp="100" kv="1" forcerange="-3.001 3.001" forcelimited="true"/>
-    <position name="l_ankle_actuator" joint="l_ankle_pitch" gear="1" kp="100" kv="1" forcerange="-3.001 3.001" forcelimited="true"/>
-    <position name="l_foot_middle_actuator" joint="l_foot_middle_roll" gear="1" kp="100" kv="1" forcerange="-3.001 3.001" forcelimited="true"/>
-    <position name="r_hipjoint_lower_actuator" joint="r_hipjoint_lower_roll" gear="1" kp="100" kv="1" forcerange="-3.001 3.001" forcelimited="true"/>
-    <position name="r_leg_upper_actuator" joint="r_leg_upper_pitch" gear="1" kp="100" kv="1" forcerange="-3.001 3.001" forcelimited="true"/>
-    <position name="r_leg_lower_actuator" joint="r_leg_lower_pitch" gear="1" kp="100" kv="1" forcerange="-3.001 3.001" forcelimited="true"/>
-    <position name="r_ankle_actuator" joint="r_ankle_pitch" gear="1" kp="100" kv="1" forcerange="-3.001 3.001" forcelimited="true"/>
-    <position name="r_foot_middle_actuator" joint="r_foot_middle_roll" gear="1" kp="100" kv="1" forcerange="-3.001 3.001" forcelimited="true"/>
+    <position name="c_spine_01_yp_actuator" joint="c_spine_01_yp" gear="1" kp="100" kv="1" forcerange="-3.001 3.001" forcelimited="true"/>
+    <position name="c_neck_zy_actuator" joint="c_neck_zy" gear="1" kp="100" kv="1" forcerange="-3.001 3.001" forcelimited="true"/>
+    <position name="l_shoulder_yp_actuator" joint="l_shoulder_yp" gear="1" kp="100" kv="1" forcerange="-3.001 3.001" forcelimited="true"/>
+    <position name="l_shoulder_xr_actuator" joint="l_shoulder_xr" gear="1" kp="100" kv="1" forcerange="-3.001 3.001" forcelimited="true"/>
+    <position name="l_elbow_zy_actuator" joint="l_elbow_zy" gear="1" kp="100" kv="1" forcerange="-3.001 3.001" forcelimited="true"/>
+    <position name="l_elbow_yp_actuator" joint="l_elbow_yp" gear="1" kp="100" kv="1" forcerange="-3.001 3.001" forcelimited="true"/>
+    <position name="r_shoulder_yp_actuator" joint="r_shoulder_yp" gear="1" kp="100" kv="1" forcerange="-3.001 3.001" forcelimited="true"/>
+    <position name="r_shoulder_xr_actuator" joint="r_shoulder_xr" gear="1" kp="100" kv="1" forcerange="-3.001 3.001" forcelimited="true"/>
+    <position name="r_elbow_zy_actuator" joint="r_elbow_zy" gear="1" kp="100" kv="1" forcerange="-3.001 3.001" forcelimited="true"/>
+    <position name="r_elbow_yp_actuator" joint="r_elbow_yp" gear="1" kp="100" kv="1" forcerange="-3.001 3.001" forcelimited="true"/>
+    <position name="l_hipjoint_xr_actuator" joint="l_hipjoint_xr" gear="1" kp="100" kv="1" forcerange="-3.001 3.001" forcelimited="true"/>
+    <position name="l_hipjoint_yp_actuator" joint="l_hipjoint_yp" gear="1" kp="100" kv="1" forcerange="-3 3" forcelimited="true"/>
+    <position name="l_knee_yp_actuator" joint="l_knee_yp" gear="1" kp="100" kv="1" forcerange="-3.001 3.001" forcelimited="true"/>
+    <position name="l_ankle_yp_actuator" joint="l_ankle_yp" gear="1" kp="100" kv="1" forcerange="-3.001 3.001" forcelimited="true"/>
+    <position name="l_ankle_xr_actuator" joint="l_ankle_xr" gear="1" kp="100" kv="1" forcerange="-3.001 3.001" forcelimited="true"/>
+    <position name="r_hipjoint_xr_actuator" joint="r_hipjoint_xr" gear="1" kp="100" kv="1" forcerange="-3.001 3.001" forcelimited="true"/>
+    <position name="r_hipjoint_yp_actuator" joint="r_hipjoint_yp" gear="1" kp="100" kv="1" forcerange="-3.001 3.001" forcelimited="true"/>
+    <position name="r_knee_yp_actuator" joint="r_knee_yp" gear="1" kp="100" kv="1" forcerange="-3.001 3.001" forcelimited="true"/>
+    <position name="r_ankle_yp_actuator" joint="r_ankle_yp" gear="1" kp="100" kv="1" forcerange="-3.001 3.001" forcelimited="true"/>
+    <position name="r_ankle_xr_actuator" joint="r_ankle_xr" gear="1" kp="100" kv="1" forcerange="-3.001 3.001" forcelimited="true"/>
   </actuator>
 
   <sensor>
